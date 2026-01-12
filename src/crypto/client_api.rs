@@ -409,7 +409,21 @@ where
         let session = self
             .sessions
             .get_mut(contact_id)
-            .ok_or_else(|| format!("No session with contact: {}", contact_id))?;
+            .ok_or_else(|| {
+                tracing::error!(
+                    target: "crypto::client",
+                    contact_id = %contact_id,
+                    "No session found for contact"
+                );
+                format!("No session with contact: {}", contact_id)
+            })?;
+
+        tracing::debug!(
+            target: "crypto::client",
+            contact_id = %contact_id,
+            plaintext_len = plaintext.len(),
+            "Encrypting message"
+        );
 
         session.encrypt(plaintext)
     }

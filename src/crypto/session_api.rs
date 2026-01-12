@@ -134,8 +134,8 @@ where
         remote_identity: &P::KemPublicKey,
         contact_id: String,
     ) -> Result<Self, String> {
-        use tracing::info;
-
+        use tracing::{info, error};
+        
         info!(
             target: "crypto::session",
             contact_id = %contact_id,
@@ -144,7 +144,15 @@ where
 
         // 1. Perform handshake (X3DH)
         let (root_key, initiator_state) =
-            H::perform_as_initiator(local_identity, remote_bundle)?;
+            H::perform_as_initiator(local_identity, remote_bundle)
+            .map_err(|e| {
+                error!(
+                    target: "crypto::session",
+                    error = %e,
+                    "X3DH handshake failed"
+                );
+                e
+            })?;
 
         info!(
             target: "crypto::session",
@@ -158,7 +166,15 @@ where
             initiator_state,
             remote_identity,
             contact_id.clone(),
-        )?;
+        )
+        .map_err(|e| {
+            error!(
+                target: "crypto::session",
+                error = %e,
+                "Double Ratchet initialization failed"
+            );
+            e
+        })?;
 
         info!(
             target: "crypto::session",
