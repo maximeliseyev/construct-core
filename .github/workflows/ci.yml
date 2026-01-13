@@ -20,7 +20,7 @@ jobs:
           components: rustfmt, clippy
       
       - name: Cache Cargo dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -53,7 +53,7 @@ jobs:
           targets: wasm32-unknown-unknown
       
       - name: Cache Cargo dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -74,7 +74,7 @@ jobs:
           wasm-pack build --target web --out-dir pkg --features wasm
       
       - name: Upload WASM artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wasm-pkg
           path: pkg/
@@ -90,7 +90,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       
       - name: Cache Cargo dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -116,7 +116,7 @@ jobs:
           uniffi-bindgen generate src/construct_core.udl --language swift --out-dir bindings/ios
       
       - name: Upload iOS artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ios-bindings
           path: |
@@ -129,12 +129,12 @@ jobs:
     needs: [build-wasm, build-ios]
     if: github.event_name == 'release'
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: wasm-pkg
           path: release/wasm/
       
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ios-bindings
           path: release/ios/
