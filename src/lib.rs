@@ -24,6 +24,9 @@ pub mod config;
 pub mod crypto;
 pub mod error;
 pub mod protocol;
+pub mod state;
+pub mod storage;
+pub mod traffic_protection;
 pub mod utils;
 
 // Re-exports for convenience

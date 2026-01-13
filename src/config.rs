@@ -103,9 +103,8 @@ pub struct Config {
     pub websocket_ready_state_open: u16,
 }
 
-impl Config {
-    /// Создать конфигурацию с дефолтными значениями
-    pub fn default() -> Self {
+impl Default for Config {
+    fn default() -> Self {
         Self {
             // Криптография
             pbkdf2_iterations: 100_000,
@@ -142,7 +141,9 @@ impl Config {
             websocket_ready_state_open: 1,
         }
     }
+}
 
+impl Config {
     /// Создать конфигурацию из переменных окружения
     pub fn from_env() -> Self {
         let mut config = Self::default();
@@ -179,7 +180,7 @@ impl Config {
     ///
     /// Автоматически инициализирует конфигурацию со значениями по умолчанию при первом вызове
     pub fn global() -> &'static Config {
-        GLOBAL_CONFIG.get_or_init(|| Config::default())
+        GLOBAL_CONFIG.get_or_init(Config::default)
     }
 
     /// Инициализировать глобальную конфигурацию со значениями по умолчанию

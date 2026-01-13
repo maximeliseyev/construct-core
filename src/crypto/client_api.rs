@@ -244,7 +244,7 @@ where
 
         // Create session
         let session = Session::<P, H, M>::init_as_initiator(
-            &local_identity_priv,
+            local_identity_priv,
             remote_bundle,
             remote_identity,
             contact_id.to_string(),
@@ -367,7 +367,7 @@ where
         // Create session and decrypt first message
         // ⚠️ ВАЖНО: init_as_responder теперь возвращает (session, plaintext)
         let (session, plaintext) = Session::<P, H, M>::init_as_responder(
-            &local_identity,
+            local_identity,
             &local_signed_prekey,
             remote_identity,
             remote_ephemeral,

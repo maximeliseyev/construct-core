@@ -266,8 +266,7 @@ where
 {
     let bundle = client
         .key_manager()
-        .export_registration_bundle()
-        .map_err(ConstructError::from)?;
+        .export_registration_bundle()?;
     Ok(KeyBundle {
         identity_public: bundle.identity_public,
         signed_prekey_public: bundle.signed_prekey_public,

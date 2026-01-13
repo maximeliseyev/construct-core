@@ -158,13 +158,13 @@ pub fn validate_client_message(msg: &ClientMessage) -> Result<()> {
             // Декодируем и валидируем бандл
             let msgpack_bytes =
                 general_purpose::STANDARD
-                    .decode(&data.public_key)
+                    .decode(&data.public_key.bundle_data)
                     .map_err(|_| {
-                        ConstructError::ValidationError("Invalid Base64 in public_key".to_string())
+                        ConstructError::ValidationError("Invalid Base64 in bundle_data".to_string())
                     })?;
             let bundle: RegistrationBundle =
                 rmp_serde::from_slice(&msgpack_bytes).map_err(|_| {
-                    ConstructError::ValidationError("Invalid MessagePack in public_key".to_string())
+                    ConstructError::ValidationError("Invalid MessagePack in bundle_data".to_string())
                 })?;
             validate_registration_bundle(&bundle)?;
         }
