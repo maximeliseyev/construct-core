@@ -99,11 +99,7 @@ impl MemoryStorage {
         messages.sort_by_key(|m| m.timestamp);
 
         // Пагинация
-        let messages = messages
-            .into_iter()
-            .skip(offset)
-            .take(limit)
-            .collect();
+        let messages = messages.into_iter().skip(offset).take(limit).collect();
 
         Ok(messages)
     }

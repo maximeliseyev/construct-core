@@ -55,7 +55,10 @@ pub enum PaddingError {
 /// ```
 pub fn pad_message(plaintext: &[u8], block_size: usize) -> Result<Vec<u8>, PaddingError> {
     if plaintext.len() > MAX_MESSAGE_SIZE {
-        return Err(PaddingError::MessageTooLarge(plaintext.len(), MAX_MESSAGE_SIZE));
+        return Err(PaddingError::MessageTooLarge(
+            plaintext.len(),
+            MAX_MESSAGE_SIZE,
+        ));
     }
 
     // Calculate padding needed
@@ -132,15 +135,19 @@ mod tests {
         let messages = vec![
             b"Hello".to_vec(),
             b"A".to_vec(),
-            vec![0u8; 254],  // Just under block size
-            vec![0u8; 255],  // Exactly block size
-            vec![0u8; 256],  // Just over block size
-            b"".to_vec(),    // Empty message -> 255 bytes of padding
+            vec![0u8; 254], // Just under block size
+            vec![0u8; 255], // Exactly block size
+            vec![0u8; 256], // Just over block size
+            b"".to_vec(),   // Empty message -> 255 bytes of padding
         ];
 
         for msg in &messages {
             let padded = pad_message(msg, 255).unwrap();
-            assert_eq!(padded.len() % 255, 0, "Padded length should be multiple of 255");
+            assert_eq!(
+                padded.len() % 255,
+                0,
+                "Padded length should be multiple of 255"
+            );
 
             let unpadded = unpad_message(&padded).unwrap();
             assert_eq!(&unpadded, msg, "Roundtrip should preserve message");
@@ -150,26 +157,25 @@ mod tests {
     #[test]
     fn test_all_messages_same_block_size() {
         // Short messages should all pad to same size
-        let short_msgs: Vec<&[u8]> = vec![
-            b"Hi",
-            b"Hello there",
-            b"How are you doing today?",
-        ];
+        let short_msgs: Vec<&[u8]> = vec![b"Hi", b"Hello there", b"How are you doing today?"];
 
-        let padded_sizes: Vec<_> = short_msgs.iter()
+        let padded_sizes: Vec<_> = short_msgs
+            .iter()
             .map(|m| pad_message(m, 255).unwrap().len())
             .collect();
 
-        assert!(padded_sizes.iter().all(|&s| s == 255),
-            "All short messages should pad to 255 bytes");
+        assert!(
+            padded_sizes.iter().all(|&s| s == 255),
+            "All short messages should pad to 255 bytes"
+        );
     }
 
     #[test]
     fn test_invalid_padding_detected() {
         // Corrupted padding
         let mut bad = vec![0u8; 255];
-        bad[254] = 10;  // Claims 10 bytes padding
-        bad[253] = 5;   // But this byte is wrong
+        bad[254] = 10; // Claims 10 bytes padding
+        bad[253] = 5; // But this byte is wrong
 
         assert!(unpad_message(&bad).is_err());
     }

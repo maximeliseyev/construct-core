@@ -1,6 +1,5 @@
 // Состояние контактов
 
-
 pub struct ContactsState;
 
 impl ContactsState {

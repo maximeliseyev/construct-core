@@ -12,24 +12,19 @@
 //! - Cover traffic: Battery-aware with adaptive intervals
 //! - Timing jitter: Minimal CPU wake-ups
 
-pub mod padding;
 pub mod cover_traffic;
+pub mod padding;
 pub mod timing;
 
 // Re-exports
-pub use padding::{pad_message, unpad_message, pad_message_default, PaddingError, DEFAULT_BLOCK_SIZE};
 pub use cover_traffic::{
-    generate_dummy_message,
-    is_dummy_message,
-    CoverTrafficConfig,
-    CoverTrafficManager,
+    generate_dummy_message, is_dummy_message, CoverTrafficConfig, CoverTrafficManager,
     EnergyMetrics,
 };
+pub use padding::{
+    pad_message, pad_message_default, unpad_message, PaddingError, DEFAULT_BLOCK_SIZE,
+};
 pub use timing::{
-    jittered_interval,
-    random_send_delay,
-    heartbeat_interval,
-    battery_aware_jitter,
-    recommended_send_delay,
-    TimingConfig,
+    battery_aware_jitter, heartbeat_interval, jittered_interval, random_send_delay,
+    recommended_send_delay, TimingConfig,
 };

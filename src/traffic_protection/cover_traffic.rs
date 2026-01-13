@@ -124,9 +124,9 @@ impl Default for CoverTrafficConfig {
         Self {
             enabled: false, // Disabled by default (opt-in for privacy-conscious users)
             battery_level_threshold: 0.2, // 20%
-            min_interval_ms: 30000,   // 30 seconds (conservative)
-            max_interval_ms: 300000,  // 5 minutes
-            message_size: 255,        // Match padding block size
+            min_interval_ms: 30000, // 30 seconds (conservative)
+            max_interval_ms: 300000, // 5 minutes
+            message_size: 255, // Match padding block size
             coalesce_with_real_messages: true, // Energy efficient
             coalesce_window_ms: 10000, // 10 seconds
         }
@@ -261,8 +261,8 @@ impl CoverTrafficManager {
     fn adapt_interval(&mut self) {
         // Increase interval every 5 consecutive dummies
         if self.consecutive_dummies % 5 == 0 && self.consecutive_dummies > 0 {
-            self.current_interval_ms = (self.current_interval_ms * 3 / 2)
-                .min(self.config.max_interval_ms);
+            self.current_interval_ms =
+                (self.current_interval_ms * 3 / 2).min(self.config.max_interval_ms);
         }
     }
 

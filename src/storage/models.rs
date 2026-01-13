@@ -42,7 +42,7 @@ pub struct StoredPrivateKeys {
     pub encrypted_signed_prekey_private: Vec<u8>,
     pub encrypted_signing_key: Vec<u8>,
     pub prekey_signature: Vec<u8>, // Ed25519 подпись для prekey (не шифруется)
-    pub salt: Vec<u8>, // Для PBKDF2
+    pub salt: Vec<u8>,             // Для PBKDF2
     pub created_at: i64,
 }
 

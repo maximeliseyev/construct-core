@@ -264,9 +264,7 @@ where
     X3DHProtocol<P>: KeyAgreement<P, PublicKeyBundle = X3DHPublicKeyBundle>,
     <X3DHProtocol<P> as KeyAgreement<P>>::SharedSecret: AsRef<[u8]>,
 {
-    let bundle = client
-        .key_manager()
-        .export_registration_bundle()?;
+    let bundle = client.key_manager().export_registration_bundle()?;
     Ok(KeyBundle {
         identity_public: bundle.identity_public,
         signed_prekey_public: bundle.signed_prekey_public,

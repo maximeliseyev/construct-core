@@ -11,15 +11,13 @@ use crate::storage::indexeddb::IndexedDbStorage;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::storage::memory::MemoryStorage;
 
+use crate::crypto::CryptoProvider;
 use crate::protocol::messages::ChatMessage;
 use crate::state::conversations::ConversationsManager;
-use crate::crypto::CryptoProvider;
 use std::marker::PhantomData;
 
 #[cfg(target_arch = "wasm32")]
 use crate::protocol::transport::WebSocketTransport;
-
-
 
 /// Состояние подключения к серверу
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,7 +99,7 @@ impl ReconnectState {
 
         Self {
             attempts: 0,
-            max_attempts: 0,        // Бесконечные попытки
+            max_attempts: 0, // Бесконечные попытки
             current_delay_ms: initial_delay,
             initial_delay_ms: initial_delay,
             max_delay_ms: max_delay,
@@ -627,57 +625,63 @@ impl<P: CryptoProvider> AppState<P> {
     /// Отправляет сообщение Register с username, password и registration bundle
     #[cfg(target_arch = "wasm32")]
     pub fn register_on_server(&self, password: String) -> Result<()> {
-        use crate::protocol::messages::{ClientMessage, RegisterData, BundleData, SuiteKeyMaterial, UploadableKeyBundle};
+        use crate::protocol::messages::{
+            BundleData, ClientMessage, RegisterData, SuiteKeyMaterial, UploadableKeyBundle,
+        };
         use base64::Engine;
 
         // 1. Проверить, что пользователь инициализирован
-        let username = self.username.as_ref()
-            .ok_or_else(|| ConstructError::InvalidInput(
-                "User not initialized. Call initialize_user first.".to_string()
-            ))?;
+        let username = self.username.as_ref().ok_or_else(|| {
+            ConstructError::InvalidInput(
+                "User not initialized. Call initialize_user first.".to_string(),
+            )
+        })?;
 
         // 2. Проверить, что есть transport
-        let transport = self.transport.as_ref()
-            .ok_or_else(|| ConstructError::NetworkError(
-                "Not connected to server. Call connect first.".to_string()
-            ))?;
+        let transport = self.transport.as_ref().ok_or_else(|| {
+            ConstructError::NetworkError("Not connected to server. Call connect first.".to_string())
+        })?;
 
         // 3. Получить registration bundle
         let bundle = self.crypto_manager.export_registration_bundle_b64()?;
-        
+
         // 4. Создать SuiteKeyMaterial
-        let suite_id = bundle.suite_id.parse::<u16>()
+        let suite_id = bundle
+            .suite_id
+            .parse::<u16>()
             .map_err(|_| ConstructError::SerializationError("Invalid suite_id".to_string()))?;
-        
+
         let suite = SuiteKeyMaterial {
             suite_id,
             identity_key: bundle.identity_public,
             signed_prekey: bundle.signed_prekey_public,
-            signed_prekey_signature: bundle.signature,  // ✅ Используем signature из bundle
-            one_time_prekeys: vec![],  // Опционально
+            signed_prekey_signature: bundle.signature, // ✅ Используем signature из bundle
+            one_time_prekeys: vec![],                  // Опционально
         };
 
         // 5. Создать BundleData
         let bundle_data = BundleData {
-            user_id: String::new(),  // Пустая строка при регистрации
-            timestamp: crate::utils::time::current_timestamp_iso8601(),  // ISO8601 формат
+            user_id: String::new(), // Пустая строка при регистрации
+            timestamp: crate::utils::time::current_timestamp_iso8601(), // ISO8601 формат
             supported_suites: vec![suite],
         };
 
         // 6. Сериализовать BundleData в JSON (с sorted keys для детерминированности)
-        let bundle_data_json = serde_json::to_vec(&bundle_data)
-            .map_err(|e| ConstructError::SerializationError(
-                format!("Failed to serialize BundleData: {}", e)
-            ))?;
+        let bundle_data_json = serde_json::to_vec(&bundle_data).map_err(|e| {
+            ConstructError::SerializationError(format!("Failed to serialize BundleData: {}", e))
+        })?;
 
         // 7. Подписать BundleData JSON
-        let bundle_data_signature = self.crypto_manager.sign_bundle_data(bundle_data_json.clone())
-            .map_err(|e| ConstructError::SerializationError(
-                format!("Failed to sign BundleData: {}", e)
-            ))?;
+        let bundle_data_signature = self
+            .crypto_manager
+            .sign_bundle_data(bundle_data_json.clone())
+            .map_err(|e| {
+                ConstructError::SerializationError(format!("Failed to sign BundleData: {}", e))
+            })?;
 
         // 8. Base64-encode BundleData JSON
-        let bundle_data_base64 = base64::engine::general_purpose::STANDARD.encode(&bundle_data_json);
+        let bundle_data_base64 =
+            base64::engine::general_purpose::STANDARD.encode(&bundle_data_json);
 
         // 9. Создать UploadableKeyBundle
         let uploadable_bundle = UploadableKeyBundle {
@@ -690,7 +694,7 @@ impl<P: CryptoProvider> AppState<P> {
         let register_data = RegisterData {
             username: username.clone(),
             password,
-            public_key: uploadable_bundle,  // ✅ Теперь структура, а не String
+            public_key: uploadable_bundle, // ✅ Теперь структура, а не String
         };
 
         // 11. Отправить через transport
