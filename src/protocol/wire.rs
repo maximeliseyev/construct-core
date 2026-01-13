@@ -44,14 +44,18 @@ pub fn unpack_raw<'a, T: Deserialize<'a>>(data: &'a [u8]) -> Result<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::messages::RegisterData;
+    use crate::protocol::messages::{RegisterData, UploadableKeyBundle};
 
     #[test]
     fn test_pack_unpack_client_message() {
         let msg = ClientMessage::Register(RegisterData {
             username: "test".to_string(),
             password: "password".to_string(),
-            public_key: "key".to_string(),
+            public_key: UploadableKeyBundle {
+                master_identity_key: "master_key".to_string(),
+                bundle_data: "bundle_data".to_string(),
+                signature: "signature".to_string(),
+            },
         });
         let packed = pack_client_message(&msg).unwrap();
         assert!(!packed.is_empty());

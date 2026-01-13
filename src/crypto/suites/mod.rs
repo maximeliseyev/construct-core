@@ -28,7 +28,10 @@
 //! type MySuite = ClassicSuiteProvider;
 //!
 //! // Генерация ключей
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let (private_key, public_key) = MySuite::generate_kem_keys()?;
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod classic;
