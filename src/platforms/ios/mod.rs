@@ -2,7 +2,5 @@
 // UniFFI bindings for iOS/macOS
 
 #[cfg(feature = "ios")]
-pub mod uniffi_bindings;
-
-#[cfg(feature = "ios")]
-pub use uniffi_bindings::*;
+// Include the generated UniFFI scaffolding
+include!(concat!(env!("OUT_DIR"), "/construct_core.uniffi.rs"));

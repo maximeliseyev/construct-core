@@ -3,7 +3,7 @@
 
 #![warn(clippy::all)]
 #![allow(clippy::too_many_arguments)]
-#![allow(unsafe_attr_outside_unsafe)]  // Allow UniFFI 0.28 generated code on Rust 1.82+
+#![allow(unsafe_attr_outside_unsafe)]  // Allow UniFFI generated code
 
 // Platform-specific modules
 #[cfg(feature = "ios")]
