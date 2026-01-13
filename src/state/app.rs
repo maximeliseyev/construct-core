@@ -627,7 +627,8 @@ impl<P: CryptoProvider> AppState<P> {
     /// Отправляет сообщение Register с username, password и registration bundle
     #[cfg(target_arch = "wasm32")]
     pub fn register_on_server(&self, password: String) -> Result<()> {
-        use crate::protocol::messages::{ClientMessage, RegisterData};
+        use crate::protocol::messages::{ClientMessage, RegisterData, BundleData, SuiteKeyMaterial, UploadableKeyBundle};
+        use base64::Engine;
 
         // 1. Проверить, что пользователь инициализирован
         let username = self.username.as_ref()
@@ -641,24 +642,58 @@ impl<P: CryptoProvider> AppState<P> {
                 "Not connected to server. Call connect first.".to_string()
             ))?;
 
-        // 3. Получить registration bundle в base64
+        // 3. Получить registration bundle
         let bundle = self.crypto_manager.export_registration_bundle_b64()?;
-
-        // 4. Сериализовать bundle в JSON для public_key поля
-        let public_key = serde_json::to_string(&bundle)
-            .map_err(|e| ConstructError::SerializationError(
-                format!("Failed to serialize registration bundle: {}", e)
-            ))?;
-
-        // 5. Создать RegisterData
-        let register_data = RegisterData {
-            username: username.clone(),
-            display_name: username.clone(), // Используем username как display_name
-            password,
-            public_key,
+        
+        // 4. Создать SuiteKeyMaterial
+        let suite_id = bundle.suite_id.parse::<u16>()
+            .map_err(|_| ConstructError::SerializationError("Invalid suite_id".to_string()))?;
+        
+        let suite = SuiteKeyMaterial {
+            suite_id,
+            identity_key: bundle.identity_public,
+            signed_prekey: bundle.signed_prekey_public,
+            signed_prekey_signature: bundle.signature,  // ✅ Используем signature из bundle
+            one_time_prekeys: vec![],  // Опционально
         };
 
-        // 6. Отправить через transport
+        // 5. Создать BundleData
+        let bundle_data = BundleData {
+            user_id: String::new(),  // Пустая строка при регистрации
+            timestamp: crate::utils::time::current_timestamp_iso8601(),  // ISO8601 формат
+            supported_suites: vec![suite],
+        };
+
+        // 6. Сериализовать BundleData в JSON (с sorted keys для детерминированности)
+        let bundle_data_json = serde_json::to_vec(&bundle_data)
+            .map_err(|e| ConstructError::SerializationError(
+                format!("Failed to serialize BundleData: {}", e)
+            ))?;
+
+        // 7. Подписать BundleData JSON
+        let bundle_data_signature = self.crypto_manager.sign_bundle_data(bundle_data_json.clone())
+            .map_err(|e| ConstructError::SerializationError(
+                format!("Failed to sign BundleData: {}", e)
+            ))?;
+
+        // 8. Base64-encode BundleData JSON
+        let bundle_data_base64 = base64::engine::general_purpose::STANDARD.encode(&bundle_data_json);
+
+        // 9. Создать UploadableKeyBundle
+        let uploadable_bundle = UploadableKeyBundle {
+            master_identity_key: bundle.verifying_key,
+            bundle_data: bundle_data_base64,
+            signature: bundle_data_signature,
+        };
+
+        // 10. Создать RegisterData (без display_name - его нет на сервере)
+        let register_data = RegisterData {
+            username: username.clone(),
+            password,
+            public_key: uploadable_bundle,  // ✅ Теперь структура, а не String
+        };
+
+        // 11. Отправить через transport
         let message = ClientMessage::Register(register_data);
         transport.send(&message)?;
 

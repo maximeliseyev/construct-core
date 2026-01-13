@@ -107,13 +107,42 @@ pub struct ErrorData {
 // Client Message Data Structures
 // ============================================================================
 
+/// Bundle data that gets serialized and signed
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleData {
+    pub user_id: String,
+    pub timestamp: String,  // ISO8601
+    pub supported_suites: Vec<SuiteKeyMaterial>,
+}
+
+/// Cryptographic materials for a supported cipher suite
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SuiteKeyMaterial {
+    pub suite_id: u16,
+    pub identity_key: String,  // Base64
+    pub signed_prekey: String,  // Base64
+    pub signed_prekey_signature: String,  // Base64 - ОБЯЗАТЕЛЬНО!
+    pub one_time_prekeys: Vec<String>,  // Base64, опционально
+}
+
+/// Uploadable key bundle that the client sends to the server
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadableKeyBundle {
+    pub master_identity_key: String,  // Base64 Ed25519 public key
+    pub bundle_data: String,  // Base64-encoded JSON BundleData
+    pub signature: String,  // Base64 Ed25519 signature of bundle_data
+}
+
 /// Данные для регистрации
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterData {
     pub username: String,
     pub password: String,
-    pub public_key: String,
+    pub public_key: UploadableKeyBundle,  // Изменено с String на UploadableKeyBundle
 }
 
 /// Данные для входа

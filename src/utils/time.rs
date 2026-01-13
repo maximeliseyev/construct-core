@@ -47,3 +47,21 @@ pub fn current_timestamp_millis() -> i64 {
             .as_millis() as i64
     }
 }
+
+/// Получить текущий timestamp в ISO8601 формате с fractional seconds
+/// Формат: "2026-01-13T07:22:06.209+00:00"
+pub fn current_timestamp_iso8601() -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // В WASM используем js_sys::Date для ISO8601
+        let date = js_sys::Date::new_0();
+        date.to_iso_string().as_string().unwrap_or_default()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // В non-WASM используем chrono
+        use chrono::Utc;
+        Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    }
+}

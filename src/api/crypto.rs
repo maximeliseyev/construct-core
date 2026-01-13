@@ -101,6 +101,21 @@ where
         })
     }
 
+    /// Подписать BundleData JSON с помощью Ed25519 signing key
+    /// Используется для создания signature в UploadableKeyBundle
+    pub fn sign_bundle_data(&self, bundle_data_json: Vec<u8>) -> Result<String> {
+        use base64::Engine;
+        
+        // Получить подпись от KeyManager
+        let signature = self.client.key_manager().sign(&bundle_data_json)
+            .map_err(|e| ConstructError::Crypto(crate::error::CryptoError::Other(
+                format!("Failed to sign BundleData: {:?}", e)
+            )))?;
+        
+        // Base64-encode подпись
+        Ok(base64::engine::general_purpose::STANDARD.encode(&signature))
+    }
+
     pub fn export_public_bundle(&self) -> Result<KeyBundle> {
         let bundle = self.client.key_manager().export_public_bundle()?;
         Ok(bundle.into())
