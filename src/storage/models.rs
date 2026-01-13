@@ -29,7 +29,7 @@ pub struct StoredMessage {
 pub struct StoredContact {
     pub id: String,
     pub username: String,
-    pub public_key_bundle: Option<Vec<u8>>, // JSON или Bincode
+    pub public_key_bundle: Option<Vec<u8>>, // JSON или Postcard
     pub added_at: i64,
     pub last_message_at: Option<i64>,
 }
@@ -51,7 +51,7 @@ pub struct StoredPrivateKeys {
 pub struct StoredSession {
     pub session_id: String,
     pub contact_id: String,
-    pub session_data: Vec<u8>, // Bincode сериализация SerializableSession
+    pub session_data: Vec<u8>, // Postcard сериализация SerializableSession
     pub last_used: i64,
     pub created_at: i64,
 }

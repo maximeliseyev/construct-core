@@ -1,6 +1,4 @@
 // iOS platform-specific code
 // UniFFI bindings for iOS/macOS
 
-#[cfg(feature = "ios")]
-// Include the generated UniFFI scaffolding
-include!(concat!(env!("OUT_DIR"), "/construct_core.uniffi.rs"));
+// This module is re-exported in lib.rs to provide access to UniFFI bindings

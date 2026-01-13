@@ -33,6 +33,10 @@ pub enum ConstructError {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    /// Неверный ввод
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
     /// Внутренняя ошибка
     #[error("Internal error: {0}")]
     InternalError(String),

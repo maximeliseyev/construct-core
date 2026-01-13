@@ -60,8 +60,10 @@ pub fn current_timestamp_iso8601() -> String {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        // В non-WASM используем chrono
-        use chrono::Utc;
-        Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        // В non-WASM используем time crate
+        use time::OffsetDateTime;
+        OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_else(|_| String::from("1970-01-01T00:00:00Z"))
     }
 }

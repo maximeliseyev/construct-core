@@ -11,6 +11,13 @@ use crate::storage::indexeddb::IndexedDbStorage;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::storage::memory::MemoryStorage;
 
+// Type alias for conditional storage type
+#[cfg(target_arch = "wasm32")]
+type StorageType = IndexedDbStorage;
+
+#[cfg(not(target_arch = "wasm32"))]
+type StorageType = MemoryStorage;
+
 use crate::crypto::CryptoProvider;
 use crate::protocol::messages::ChatMessage;
 use crate::state::conversations::ConversationsManager;
@@ -158,7 +165,11 @@ pub struct AppState<P: CryptoProvider> {
     conversations_manager: ConversationsManager,
 
     // === Хранилище ===
-    storage: MemoryStorage,
+    storage: StorageType,
+
+    // === Транспорт (только для WASM) ===
+    #[cfg(target_arch = "wasm32")]
+    transport: Option<WebSocketTransport>,
 
     // === Состояние соединения ===
     connection_state: ConnectionState,
@@ -254,9 +265,9 @@ impl<P: CryptoProvider> AppState<P> {
     #[cfg(target_arch = "wasm32")]
     pub async fn finalize_registration(
         &mut self,
-        server_user_id: String,
+        _server_user_id: String,
         _session_token: String,
-        password: String,
+        _password: String,
     ) -> Result<()> {
         unimplemented!()
     }
@@ -291,7 +302,7 @@ impl<P: CryptoProvider> AppState<P> {
 
     /// Загрузить существующего пользователя
     #[cfg(target_arch = "wasm32")]
-    pub async fn load_user(&mut self, user_id: String, password: String) -> Result<()> {
+    pub async fn load_user(&mut self, _user_id: String, _password: String) -> Result<()> {
         unimplemented!()
     }
 
@@ -352,9 +363,9 @@ impl<P: CryptoProvider> AppState<P> {
     #[cfg(target_arch = "wasm32")]
     pub async fn send_message(
         &mut self,
-        to_contact_id: &str,
-        session_id: &str,
-        plaintext: &str,
+        _to_contact_id: &str,
+        _session_id: &str,
+        _plaintext: &str,
     ) -> Result<String> {
         unimplemented!()
     }
@@ -372,7 +383,11 @@ impl<P: CryptoProvider> AppState<P> {
 
     /// Обработать входящее сообщение
     #[cfg(target_arch = "wasm32")]
-    pub async fn receive_message(&mut self, chat_msg: ChatMessage, session_id: &str) -> Result<()> {
+    pub async fn receive_message(
+        &mut self,
+        _chat_msg: ChatMessage,
+        _session_id: &str,
+    ) -> Result<()> {
         unimplemented!()
     }
 
@@ -384,17 +399,18 @@ impl<P: CryptoProvider> AppState<P> {
 
     /// Обновить кеш сообщений
     #[cfg(target_arch = "wasm32")]
+    #[allow(dead_code)]
     async fn update_message_cache(
         &mut self,
-        conversation_id: &str,
-        msg: StoredMessage,
+        _conversation_id: &str,
+        _msg: StoredMessage,
     ) -> Result<()> {
         unimplemented!()
     }
 
     /// Загрузить беседу
     #[cfg(target_arch = "wasm32")]
-    pub async fn load_conversation(&mut self, contact_id: &str) -> Result<Vec<StoredMessage>> {
+    pub async fn load_conversation(&mut self, _contact_id: &str) -> Result<Vec<StoredMessage>> {
         unimplemented!()
     }
 
@@ -472,8 +488,8 @@ impl<P: CryptoProvider> AppState<P> {
     /// Эта версия вызывается из WASM bindings и имеет полный доступ к AppState
     #[cfg(target_arch = "wasm32")]
     pub fn setup_transport_callbacks_with_arc(
-        transport: &mut WebSocketTransport,
-        app_state_arc: std::sync::Arc<std::sync::Mutex<AppState<P>>>,
+        _transport: &mut WebSocketTransport,
+        _app_state_arc: std::sync::Arc<std::sync::Mutex<AppState<P>>>,
     ) -> Result<()> {
         unimplemented!()
     }
@@ -551,15 +567,16 @@ impl<P: CryptoProvider> AppState<P> {
 
     /// Запланировать автоматическое переподключение
     #[cfg(target_arch = "wasm32")]
-    pub fn schedule_reconnect(app_state_arc: std::sync::Arc<std::sync::Mutex<AppState<P>>>) {
+    pub fn schedule_reconnect(_app_state_arc: std::sync::Arc<std::sync::Mutex<AppState<P>>>) {
         unimplemented!()
     }
 
     /// Попытка переподключения
     #[cfg(target_arch = "wasm32")]
+    #[allow(dead_code)]
     async fn attempt_reconnect(
-        app_state_arc: std::sync::Arc<std::sync::Mutex<AppState<P>>>,
-        server_url: &str,
+        _app_state_arc: std::sync::Arc<std::sync::Mutex<AppState<P>>>,
+        _server_url: &str,
     ) -> Result<()> {
         unimplemented!()
     }
@@ -600,7 +617,28 @@ impl<P: CryptoProvider> AppState<P> {
 
     // === Очистка ===
 
-    /// Очистить все данные
+    /// Очистить все данные (WASM версия)
+    #[cfg(target_arch = "wasm32")]
+    pub async fn clear_all_data(&mut self) -> Result<()> {
+        // Очистить кеши
+        self.message_cache.clear();
+        self.conversations_manager.clear_all();
+        self.contact_manager.clear_all();
+
+        // Очистить хранилище
+        self.storage.clear_all().await?;
+
+        // Сбросить состояние
+        self.user_id = None;
+        self.username = None;
+        self.active_conversation = None;
+        self.connection_state = ConnectionState::Disconnected;
+
+        Ok(())
+    }
+
+    /// Очистить все данные (non-WASM версия)
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn clear_all_data(&mut self) -> Result<()> {
         // Очистить кеши
         self.message_cache.clear();

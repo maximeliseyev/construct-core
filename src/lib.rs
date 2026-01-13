@@ -9,7 +9,6 @@
 #[cfg(feature = "ios")]
 pub mod platforms {
     pub mod ios;
-    pub use ios::*;
 }
 
 #[cfg(feature = "wasm")]
@@ -17,6 +16,10 @@ pub mod platforms {
     pub mod wasm;
     pub use wasm::*;
 }
+
+// Re-export wasm module for convenience
+#[cfg(feature = "wasm")]
+pub use platforms::wasm;
 
 // Core modules (platform-independent)
 pub mod api;
@@ -31,3 +34,15 @@ pub mod utils;
 
 // Re-exports for convenience
 pub use api::MessengerAPI;
+
+// UniFFI bindings module (types and implementations)
+#[cfg(feature = "ios")]
+mod uniffi_bindings;
+
+// Re-export UniFFI bindings types so generated code can see them
+#[cfg(feature = "ios")]
+pub use uniffi_bindings::*;
+
+// Include UniFFI generated scaffolding when ios feature is enabled
+#[cfg(feature = "ios")]
+include!(concat!(env!("OUT_DIR"), "/construct_core.uniffi.rs"));

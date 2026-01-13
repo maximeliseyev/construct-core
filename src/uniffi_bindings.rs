@@ -62,9 +62,9 @@ pub struct RegistrationBundleJson {
 // Note: We use UDL definition for UniFFI
 #[derive(Debug, Clone)]
 pub struct EncryptedMessageComponents {
-    pub ephemeral_public_key: Vec<u8>,  // 32 bytes
+    pub ephemeral_public_key: Vec<u8>, // 32 bytes
     pub message_number: u32,
-    pub content: String,  // Base64(nonce || ciphertext_with_tag)
+    pub content: String, // Base64(nonce || ciphertext_with_tag)
 }
 
 // Session initialization result with decrypted first message
@@ -72,7 +72,7 @@ pub struct EncryptedMessageComponents {
 #[derive(Debug, Clone)]
 pub struct SessionInitResult {
     pub session_id: String,
-    pub decrypted_message: String,  // UTF-8 decoded plaintext
+    pub decrypted_message: String, // UTF-8 decoded plaintext
 }
 
 // Key bundle for session initialization
@@ -88,10 +88,10 @@ struct KeyBundle {
 // Private keys for persistence (exported via UDL)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivateKeysJson {
-    pub identity_secret: String,  // Base64
-    pub signing_secret: String,   // Base64
-    pub signed_prekey_secret: String,  // Base64
-    pub prekey_signature: String, // Base64
+    pub identity_secret: String,      // Base64
+    pub signing_secret: String,       // Base64
+    pub signed_prekey_secret: String, // Base64
+    pub prekey_signature: String,     // Base64
     pub suite_id: String,
 }
 
@@ -128,32 +128,37 @@ impl ClassicCryptoCore {
         //   - Но это нарушает generic design
         //
         // РЕКОМЕНДАЦИЯ: Вариант 1 - наиболее type-safe и правильный архитектурно
-        let bundle = client.key_manager().export_registration_bundle()
+        let bundle = client
+            .key_manager()
+            .export_registration_bundle()
             .map_err(|_| CryptoError::InitializationFailed)?;
 
         // Convert to base64 strings
         use base64::Engine;
         let json_bundle = RegistrationBundleJson {
-            identity_public: base64::engine::general_purpose::STANDARD.encode(&bundle.identity_public),
-            signed_prekey_public: base64::engine::general_purpose::STANDARD.encode(&bundle.signed_prekey_public),
+            identity_public: base64::engine::general_purpose::STANDARD
+                .encode(&bundle.identity_public),
+            signed_prekey_public: base64::engine::general_purpose::STANDARD
+                .encode(&bundle.signed_prekey_public),
             signature: base64::engine::general_purpose::STANDARD.encode(&bundle.signature),
             verifying_key: base64::engine::general_purpose::STANDARD.encode(&bundle.verifying_key),
             suite_id: bundle.suite_id.as_u16().to_string(),
         };
 
-        serde_json::to_string(&json_bundle)
-            .map_err(|_| CryptoError::SerializationFailed)
+        serde_json::to_string(&json_bundle).map_err(|_| CryptoError::SerializationFailed)
     }
 
     /// Sign BundleData JSON string with Ed25519 signing key
     /// This is used for creating the signature in UploadableKeyBundle
     pub fn sign_bundle_data(&self, bundle_data_json: Vec<u8>) -> Result<String, CryptoError> {
         let client = self.inner.lock().unwrap();
-        
+
         // Sign the BundleData JSON bytes
-        let signature = client.key_manager().sign(&bundle_data_json)
+        let signature = client
+            .key_manager()
+            .sign(&bundle_data_json)
             .map_err(|_| CryptoError::InitializationFailed)?;
-        
+
         // Encode signature to base64
         use base64::Engine;
         Ok(base64::engine::general_purpose::STANDARD.encode(&signature))
@@ -165,11 +170,17 @@ impl ClassicCryptoCore {
         let client = self.inner.lock().unwrap();
 
         // Get private keys from key manager
-        let identity_secret = client.key_manager().identity_secret_key()
+        let identity_secret = client
+            .key_manager()
+            .identity_secret_key()
             .map_err(|_| CryptoError::InvalidKeyData)?;
-        let signing_secret = client.key_manager().signing_secret_key()
+        let signing_secret = client
+            .key_manager()
+            .signing_secret_key()
             .map_err(|_| CryptoError::InvalidKeyData)?;
-        let prekey = client.key_manager().current_signed_prekey()
+        let prekey = client
+            .key_manager()
+            .current_signed_prekey()
             .map_err(|_| CryptoError::InvalidKeyData)?;
 
         // Convert to bytes - use AsRef<[u8]> trait bound
@@ -182,13 +193,13 @@ impl ClassicCryptoCore {
         let private_keys_json = PrivateKeysJson {
             identity_secret: base64::engine::general_purpose::STANDARD.encode(&identity_bytes),
             signing_secret: base64::engine::general_purpose::STANDARD.encode(&signing_bytes),
-            signed_prekey_secret: base64::engine::general_purpose::STANDARD.encode(&prekey_secret_bytes),
+            signed_prekey_secret: base64::engine::general_purpose::STANDARD
+                .encode(&prekey_secret_bytes),
             prekey_signature: base64::engine::general_purpose::STANDARD.encode(&prekey.signature),
             suite_id: "1".to_string(),
         };
 
-        serde_json::to_string(&private_keys_json)
-            .map_err(|_| CryptoError::SerializationFailed)
+        serde_json::to_string(&private_keys_json).map_err(|_| CryptoError::SerializationFailed)
     }
 
     /// Export session to JSON for persistence in Keychain
@@ -206,7 +217,8 @@ impl ClassicCryptoCore {
         let client = self.inner.lock().unwrap();
 
         // Get session from HashMap
-        let session = client.get_session(&contact_id)
+        let session = client
+            .get_session(&contact_id)
             .ok_or(CryptoError::SessionNotFound)?;
 
         // Get Double Ratchet session
@@ -216,8 +228,7 @@ impl ClassicCryptoCore {
         let serializable = ratchet_session.to_serializable();
 
         // Convert to JSON
-        serde_json::to_string(&serializable)
-            .map_err(|_| CryptoError::SerializationFailed)
+        serde_json::to_string(&serializable).map_err(|_| CryptoError::SerializationFailed)
     }
 
     /// Import session from JSON (restore from Keychain)
@@ -232,18 +243,23 @@ impl ClassicCryptoCore {
     /// # Errors
     /// - `SerializationFailed`: Invalid JSON or unsupported version
     /// - Other crypto errors during deserialization
-    pub fn import_session_json(&self, contact_id: String, session_json: String) -> Result<String, CryptoError> {
+    pub fn import_session_json(
+        &self,
+        contact_id: String,
+        session_json: String,
+    ) -> Result<String, CryptoError> {
         use crate::crypto::messaging::double_ratchet::{DoubleRatchetSession, SerializableSession};
 
         let mut client = self.inner.lock().unwrap();
 
         // Parse JSON
-        let serializable: SerializableSession = serde_json::from_str(&session_json)
-            .map_err(|_| CryptoError::SerializationFailed)?;
+        let serializable: SerializableSession =
+            serde_json::from_str(&session_json).map_err(|_| CryptoError::SerializationFailed)?;
 
         // Deserialize using existing method (also validates version)
-        let ratchet_session = DoubleRatchetSession::<ClassicSuiteProvider>::from_serializable(serializable)
-            .map_err(|_| CryptoError::SerializationFailed)?;
+        let ratchet_session =
+            DoubleRatchetSession::<ClassicSuiteProvider>::from_serializable(serializable)
+                .map_err(|_| CryptoError::SerializationFailed)?;
 
         // Import into Client
         let session_id = client.import_session(&contact_id, ratchet_session);
@@ -268,11 +284,11 @@ impl ClassicCryptoCore {
         contact_id: String,
         recipient_bundle: Vec<u8>,
     ) -> Result<String, CryptoError> {
-        let bundle_str = std::str::from_utf8(&recipient_bundle)
-            .map_err(|_| CryptoError::InvalidKeyData)?;
+        let bundle_str =
+            std::str::from_utf8(&recipient_bundle).map_err(|_| CryptoError::InvalidKeyData)?;
 
-        let key_bundle: KeyBundle = serde_json::from_str(bundle_str)
-            .map_err(|_| CryptoError::InvalidKeyData)?;
+        let key_bundle: KeyBundle =
+            serde_json::from_str(bundle_str).map_err(|_| CryptoError::InvalidKeyData)?;
 
         // Create X3DHPublicKeyBundle
         let public_bundle = X3DHPublicKeyBundle {
@@ -280,14 +296,12 @@ impl ClassicCryptoCore {
             signed_prekey_public: key_bundle.signed_prekey_public.clone(),
             signature: key_bundle.signature.clone(),
             verifying_key: key_bundle.verifying_key.clone(),
-            suite_id: SuiteID::new(key_bundle.suite_id)
-                .map_err(|_| CryptoError::InvalidKeyData)?,
+            suite_id: SuiteID::new(key_bundle.suite_id).map_err(|_| CryptoError::InvalidKeyData)?,
         };
 
         // Extract remote identity public key
-        let remote_identity = ClassicSuiteProvider::kem_public_key_from_bytes(
-            key_bundle.identity_public.clone()
-        );
+        let remote_identity =
+            ClassicSuiteProvider::kem_public_key_from_bytes(key_bundle.identity_public.clone());
 
         tracing::debug!(
             target: "crypto::uniffi",
@@ -299,9 +313,11 @@ impl ClassicCryptoCore {
         let mut client = self.inner.lock().unwrap();
 
         // Log local keys for debugging (sender side)
-        let local_bundle = client.key_manager().export_registration_bundle()
+        let local_bundle = client
+            .key_manager()
+            .export_registration_bundle()
             .map_err(|_| CryptoError::InitializationFailed)?;
-        
+
         tracing::debug!(
             target: "crypto::uniffi",
             contact_id = %contact_id,
@@ -315,7 +331,8 @@ impl ClassicCryptoCore {
         );
 
         // Initialize the session (returns internal session_id which we ignore)
-        client.init_session(&contact_id, &public_bundle, &remote_identity)
+        client
+            .init_session(&contact_id, &public_bundle, &remote_identity)
             .map_err(|e| {
                 tracing::error!(
                     target: "crypto::uniffi",
@@ -343,27 +360,27 @@ impl ClassicCryptoCore {
         tracing::debug!("init_receiving_session called for contact: {}", contact_id);
 
         // Parse recipient bundle JSON
-        let bundle_str = std::str::from_utf8(&recipient_bundle)
-            .map_err(|_| CryptoError::InvalidKeyData)?;
+        let bundle_str =
+            std::str::from_utf8(&recipient_bundle).map_err(|_| CryptoError::InvalidKeyData)?;
 
-        let key_bundle: KeyBundle = serde_json::from_str(bundle_str)
-            .map_err(|_| CryptoError::InvalidKeyData)?;
+        let key_bundle: KeyBundle =
+            serde_json::from_str(bundle_str).map_err(|_| CryptoError::InvalidKeyData)?;
 
         tracing::debug!("Parsed key bundle, suite_id: {}", key_bundle.suite_id);
 
         // Parse first message JSON
-        let message_str = std::str::from_utf8(&first_message)
-            .map_err(|_| CryptoError::InvalidCiphertext)?;
+        let message_str =
+            std::str::from_utf8(&first_message).map_err(|_| CryptoError::InvalidCiphertext)?;
 
         #[derive(Deserialize)]
         struct FirstMessage {
             ephemeral_public_key: Vec<u8>,
             message_number: u32,
-            content: String,  // Base64
+            content: String, // Base64
         }
 
-        let first_msg: FirstMessage = serde_json::from_str(message_str)
-            .map_err(|_| CryptoError::InvalidCiphertext)?;
+        let first_msg: FirstMessage =
+            serde_json::from_str(message_str).map_err(|_| CryptoError::InvalidCiphertext)?;
 
         // Decode base64 content
         let sealed_box = base64::engine::general_purpose::STANDARD
@@ -386,7 +403,9 @@ impl ClassicCryptoCore {
         );
 
         // Convert ephemeral_public_key to [u8; 32]
-        let dh_public_key: [u8; 32] = first_msg.ephemeral_public_key.clone()
+        let dh_public_key: [u8; 32] = first_msg
+            .ephemeral_public_key
+            .clone()
             .try_into()
             .map_err(|_| CryptoError::InvalidKeyData)?;
 
@@ -401,13 +420,11 @@ impl ClassicCryptoCore {
         };
 
         // Extract keys for session initialization
-        let remote_identity = ClassicSuiteProvider::kem_public_key_from_bytes(
-            key_bundle.identity_public.clone()
-        );
+        let remote_identity =
+            ClassicSuiteProvider::kem_public_key_from_bytes(key_bundle.identity_public.clone());
 
-        let remote_ephemeral = ClassicSuiteProvider::kem_public_key_from_bytes(
-            first_msg.ephemeral_public_key.clone()
-        );
+        let remote_ephemeral =
+            ClassicSuiteProvider::kem_public_key_from_bytes(first_msg.ephemeral_public_key.clone());
 
         tracing::debug!(
             target: "crypto::uniffi",
@@ -421,9 +438,11 @@ impl ClassicCryptoCore {
         let mut client = self.inner.lock().unwrap();
 
         // Log local keys for debugging
-        let local_bundle = client.key_manager().export_registration_bundle()
+        let local_bundle = client
+            .key_manager()
+            .export_registration_bundle()
             .map_err(|_| CryptoError::InitializationFailed)?;
-        
+
         tracing::debug!(
             target: "crypto::uniffi",
             contact_id = %contact_id,
@@ -435,30 +454,34 @@ impl ClassicCryptoCore {
             "Initializing receiving session (receiver side)"
         );
 
-        let (_internal_session_id, plaintext_bytes) = client.init_receiving_session_with_ephemeral(
-            &contact_id,
-            &remote_identity,
-            &remote_ephemeral,
-            &encrypted_first_message,
-        )
-        .map_err(|e| {
-            tracing::error!(
-                target: "crypto::uniffi",
-                contact_id = %contact_id,
-                error = %e,
-                remote_identity_len = key_bundle.identity_public.len(),
-                remote_ephemeral_len = first_msg.ephemeral_public_key.len(),
-                message_number = first_msg.message_number,
-                "init_receiving_session_with_ephemeral failed"
-            );
-            CryptoError::SessionInitializationFailed
-        })?;
+        let (_internal_session_id, plaintext_bytes) = client
+            .init_receiving_session_with_ephemeral(
+                &contact_id,
+                &remote_identity,
+                &remote_ephemeral,
+                &encrypted_first_message,
+            )
+            .map_err(|e| {
+                tracing::error!(
+                    target: "crypto::uniffi",
+                    contact_id = %contact_id,
+                    error = %e,
+                    remote_identity_len = key_bundle.identity_public.len(),
+                    remote_ephemeral_len = first_msg.ephemeral_public_key.len(),
+                    message_number = first_msg.message_number,
+                    "init_receiving_session_with_ephemeral failed"
+                );
+                CryptoError::SessionInitializationFailed
+            })?;
 
         // Convert plaintext bytes to UTF-8 string
-        let decrypted_message = String::from_utf8(plaintext_bytes)
-            .map_err(|_| CryptoError::DecryptionFailed)?;
+        let decrypted_message =
+            String::from_utf8(plaintext_bytes).map_err(|_| CryptoError::DecryptionFailed)?;
 
-        tracing::info!("Session initialized, plaintext length: {}", decrypted_message.len());
+        tracing::info!(
+            "Session initialized, plaintext length: {}",
+            decrypted_message.len()
+        );
 
         // Return contact_id as session_id for Swift (sessions are looked up by contact_id)
         Ok(SessionInitResult {
@@ -544,7 +567,7 @@ impl ClassicCryptoCore {
             message_number,
             ciphertext,
             nonce,
-            previous_chain_length: 0,  // Not used by decryption
+            previous_chain_length: 0, // Not used by decryption
             suite_id: crate::config::Config::global().classic_suite_id,
         };
 
@@ -556,8 +579,7 @@ impl ClassicCryptoCore {
             .decrypt_message(contact_id, &encrypted_message)
             .map_err(|_| CryptoError::DecryptionFailed)?;
 
-        String::from_utf8(plaintext_bytes)
-            .map_err(|_| CryptoError::DecryptionFailed)
+        String::from_utf8(plaintext_bytes).map_err(|_| CryptoError::DecryptionFailed)
     }
 
     /// Deletes a session for a contact, allowing a new one to be created.
@@ -583,23 +605,29 @@ pub fn create_crypto_core() -> Result<Arc<ClassicCryptoCore>, CryptoError> {
 
 /// Create a CryptoCore instance from existing private keys (exported via UDL)
 /// Used to restore cryptographic state from secure storage (e.g., iOS Keychain)
-pub fn create_crypto_core_from_keys_json(keys_json: String) -> Result<Arc<ClassicCryptoCore>, CryptoError> {
+pub fn create_crypto_core_from_keys_json(
+    keys_json: String,
+) -> Result<Arc<ClassicCryptoCore>, CryptoError> {
     // Инициализировать конфигурацию при первом вызове
     let _ = crate::config::Config::init();
 
     // Parse JSON
-    let private_keys: PrivateKeysJson = serde_json::from_str(&keys_json)
-        .map_err(|_| CryptoError::SerializationFailed)?;
+    let private_keys: PrivateKeysJson =
+        serde_json::from_str(&keys_json).map_err(|_| CryptoError::SerializationFailed)?;
 
     // Decode base64 to bytes
     use base64::Engine;
-    let identity_secret = base64::engine::general_purpose::STANDARD.decode(&private_keys.identity_secret)
+    let identity_secret = base64::engine::general_purpose::STANDARD
+        .decode(&private_keys.identity_secret)
         .map_err(|_| CryptoError::InvalidKeyData)?;
-    let signing_secret = base64::engine::general_purpose::STANDARD.decode(&private_keys.signing_secret)
+    let signing_secret = base64::engine::general_purpose::STANDARD
+        .decode(&private_keys.signing_secret)
         .map_err(|_| CryptoError::InvalidKeyData)?;
-    let prekey_secret = base64::engine::general_purpose::STANDARD.decode(&private_keys.signed_prekey_secret)
+    let prekey_secret = base64::engine::general_purpose::STANDARD
+        .decode(&private_keys.signed_prekey_secret)
         .map_err(|_| CryptoError::InvalidKeyData)?;
-    let prekey_signature = base64::engine::general_purpose::STANDARD.decode(&private_keys.prekey_signature)
+    let prekey_signature = base64::engine::general_purpose::STANDARD
+        .decode(&private_keys.prekey_signature)
         .map_err(|_| CryptoError::InvalidKeyData)?;
 
     // Create client from keys
@@ -608,7 +636,8 @@ pub fn create_crypto_core_from_keys_json(keys_json: String) -> Result<Arc<Classi
         signing_secret,
         prekey_secret,
         prekey_signature,
-    ).map_err(|_| CryptoError::InitializationFailed)?;
+    )
+    .map_err(|_| CryptoError::InitializationFailed)?;
 
     tracing::debug!(target: "crypto::uniffi", "CryptoCore restored from saved keys");
 
@@ -622,10 +651,8 @@ pub fn create_crypto_core_from_keys_json(keys_json: String) -> Result<Arc<Classi
 // ============================================================================
 
 use crate::traffic_protection::{
-    CoverTrafficManager,
-    CoverTrafficConfig as RustCoverTrafficConfig,
-    EnergyMetrics as RustEnergyMetrics,
-    TimingConfig as RustTimingConfig,
+    CoverTrafficConfig as RustCoverTrafficConfig, CoverTrafficManager,
+    EnergyMetrics as RustEnergyMetrics, TimingConfig as RustTimingConfig,
 };
 
 // UniFFI-compatible structs (must match UDL dictionaries)
@@ -768,20 +795,17 @@ pub fn is_dummy_message(data: Vec<u8>) -> bool {
 
 /// Generate jittered interval in milliseconds
 pub fn jittered_interval_ms(base_ms: u64, jitter_ms: u64) -> u64 {
-    crate::traffic_protection::jittered_interval(base_ms, jitter_ms)
-        .as_millis() as u64
+    crate::traffic_protection::jittered_interval(base_ms, jitter_ms).as_millis() as u64
 }
 
 /// Generate random send delay in milliseconds
 pub fn random_send_delay_ms(max_delay_ms: u64) -> u64 {
-    crate::traffic_protection::random_send_delay(max_delay_ms)
-        .as_millis() as u64
+    crate::traffic_protection::random_send_delay(max_delay_ms).as_millis() as u64
 }
 
 /// Generate heartbeat interval with jitter in milliseconds
 pub fn heartbeat_interval_ms(base_interval_sec: u64) -> u64 {
-    crate::traffic_protection::heartbeat_interval(base_interval_sec)
-        .as_millis() as u64
+    crate::traffic_protection::heartbeat_interval(base_interval_sec).as_millis() as u64
 }
 
 /// Generate battery-aware jittered interval in milliseconds
@@ -792,8 +816,8 @@ pub fn battery_aware_jitter_ms(base_ms: u64, max_jitter_ms: u64, battery_level: 
 
 /// Get recommended send delay based on priority and battery
 pub fn recommended_send_delay_ms(is_high_priority: bool, battery_level: f32) -> u64 {
-    crate::traffic_protection::recommended_send_delay(is_high_priority, battery_level)
-        .as_millis() as u64
+    crate::traffic_protection::recommended_send_delay(is_high_priority, battery_level).as_millis()
+        as u64
 }
 
 #[cfg(test)]
@@ -816,10 +840,18 @@ mod tests {
         let bundle: RegBundle = serde_json::from_str(bundle_json).unwrap();
 
         // Convert base64 to bytes
-        let identity_pub = base64::engine::general_purpose::STANDARD.decode(&bundle.identity_public).unwrap();
-        let signed_prekey = base64::engine::general_purpose::STANDARD.decode(&bundle.signed_prekey_public).unwrap();
-        let signature = base64::engine::general_purpose::STANDARD.decode(&bundle.signature).unwrap();
-        let verifying_key = base64::engine::general_purpose::STANDARD.decode(&bundle.verifying_key).unwrap();
+        let identity_pub = base64::engine::general_purpose::STANDARD
+            .decode(&bundle.identity_public)
+            .unwrap();
+        let signed_prekey = base64::engine::general_purpose::STANDARD
+            .decode(&bundle.signed_prekey_public)
+            .unwrap();
+        let signature = base64::engine::general_purpose::STANDARD
+            .decode(&bundle.signature)
+            .unwrap();
+        let verifying_key = base64::engine::general_purpose::STANDARD
+            .decode(&bundle.verifying_key)
+            .unwrap();
         let suite_id: u16 = bundle.suite_id.parse().unwrap();
 
         // Create KeyBundle and serialize it properly
@@ -847,11 +879,15 @@ mod tests {
 
         // Alice initializes session with Bob
         let contact_id = "bob_user_id_123".to_string();
-        let session_id = alice.init_session(contact_id.clone(), bob_bundle_bytes).unwrap();
+        let session_id = alice
+            .init_session(contact_id.clone(), bob_bundle_bytes)
+            .unwrap();
 
         // CRITICAL: session_id should equal contact_id
-        assert_eq!(session_id, contact_id,
-            "init_session must return contact_id as session_id for Swift compatibility");
+        assert_eq!(
+            session_id, contact_id,
+            "init_session must return contact_id as session_id for Swift compatibility"
+        );
     }
 
     /// Test full end-to-end encryption/decryption flow
@@ -869,25 +905,31 @@ mod tests {
         let bob_bundle_bytes = convert_bundle_for_init(&bob_bundle_json);
 
         // Alice initializes session with Bob
-        let alice_to_bob_session = alice.init_session(
-            "bob_user_id".to_string(),
-            bob_bundle_bytes
-        ).unwrap();
+        let alice_to_bob_session = alice
+            .init_session("bob_user_id".to_string(), bob_bundle_bytes)
+            .unwrap();
 
-        assert_eq!(alice_to_bob_session, "bob_user_id",
-            "Alice's session_id for Bob should be bob's user_id");
+        assert_eq!(
+            alice_to_bob_session, "bob_user_id",
+            "Alice's session_id for Bob should be bob's user_id"
+        );
 
         // Alice encrypts a message for Bob
         let plaintext = "Hello Bob!".to_string();
-        let encrypted = alice.encrypt_message(
-            alice_to_bob_session.clone(),
-            plaintext.clone()
-        ).unwrap();
+        let encrypted = alice
+            .encrypt_message(alice_to_bob_session.clone(), plaintext.clone())
+            .unwrap();
 
         // Verify encrypted message has required components
-        assert!(!encrypted.ephemeral_public_key.is_empty(), "Ephemeral key should not be empty");
+        assert!(
+            !encrypted.ephemeral_public_key.is_empty(),
+            "Ephemeral key should not be empty"
+        );
         assert!(!encrypted.content.is_empty(), "Content should not be empty");
-        assert_eq!(encrypted.message_number, 0, "First message should have message_number 0");
+        assert_eq!(
+            encrypted.message_number, 0,
+            "First message should have message_number 0"
+        );
 
         // Bob initializes receiving session with Alice's first message
         let first_msg_json = serde_json::json!({
@@ -897,40 +939,54 @@ mod tests {
         });
         let first_msg_bytes = serde_json::to_vec(&first_msg_json).unwrap();
 
-        let bob_session_result = bob.init_receiving_session(
-            "alice_user_id".to_string(),
-            alice_bundle_bytes,
-            first_msg_bytes
-        ).unwrap();
+        let bob_session_result = bob
+            .init_receiving_session(
+                "alice_user_id".to_string(),
+                alice_bundle_bytes,
+                first_msg_bytes,
+            )
+            .unwrap();
 
         // CRITICAL: Bob's session_id should be alice_user_id
-        assert_eq!(bob_session_result.session_id, "alice_user_id",
-            "Bob's session_id for Alice should be alice's user_id");
+        assert_eq!(
+            bob_session_result.session_id, "alice_user_id",
+            "Bob's session_id for Alice should be alice's user_id"
+        );
 
         // First message should be decrypted automatically
-        assert_eq!(bob_session_result.decrypted_message, plaintext,
-            "First message should be decrypted correctly by init_receiving_session");
+        assert_eq!(
+            bob_session_result.decrypted_message, plaintext,
+            "First message should be decrypted correctly by init_receiving_session"
+        );
 
         // Bob encrypts a reply
         let reply_plaintext = "Hi Alice!".to_string();
-        let reply_encrypted = bob.encrypt_message(
-            bob_session_result.session_id.clone(),
-            reply_plaintext.clone()
-        ).unwrap();
+        let reply_encrypted = bob
+            .encrypt_message(
+                bob_session_result.session_id.clone(),
+                reply_plaintext.clone(),
+            )
+            .unwrap();
 
-        assert_eq!(reply_encrypted.message_number, 0,
-            "Bob's first message should also have message_number 0");
+        assert_eq!(
+            reply_encrypted.message_number, 0,
+            "Bob's first message should also have message_number 0"
+        );
 
         // Alice decrypts Bob's reply
-        let decrypted_reply = alice.decrypt_message(
-            alice_to_bob_session,
-            reply_encrypted.ephemeral_public_key,
-            reply_encrypted.message_number,
-            reply_encrypted.content
-        ).unwrap();
+        let decrypted_reply = alice
+            .decrypt_message(
+                alice_to_bob_session,
+                reply_encrypted.ephemeral_public_key,
+                reply_encrypted.message_number,
+                reply_encrypted.content,
+            )
+            .unwrap();
 
-        assert_eq!(decrypted_reply, reply_plaintext,
-            "Alice should decrypt Bob's reply correctly");
+        assert_eq!(
+            decrypted_reply, reply_plaintext,
+            "Alice should decrypt Bob's reply correctly"
+        );
     }
 
     /// Test that encryption fails with proper error when session doesn't exist
@@ -938,14 +994,15 @@ mod tests {
     fn test_encrypt_without_session_fails() {
         let alice = create_crypto_core().unwrap();
 
-        let result = alice.encrypt_message(
-            "nonexistent_user".to_string(),
-            "test message".to_string()
-        );
+        let result =
+            alice.encrypt_message("nonexistent_user".to_string(), "test message".to_string());
 
-        assert!(result.is_err(), "Encryption should fail when session doesn't exist");
+        assert!(
+            result.is_err(),
+            "Encryption should fail when session doesn't exist"
+        );
         match result {
-            Err(CryptoError::EncryptionFailed) => {}, // Expected
+            Err(CryptoError::EncryptionFailed) => {} // Expected
             _ => panic!("Should return EncryptionFailed error"),
         }
     }
@@ -965,16 +1022,14 @@ mod tests {
         let alice_bundle_bytes = convert_bundle_for_init(&alice_bundle_json);
 
         // Alice initializes session
-        let alice_session_id = alice.init_session(
-            "bob_contact".to_string(),
-            bob_bundle_bytes
-        ).unwrap();
+        let alice_session_id = alice
+            .init_session("bob_contact".to_string(), bob_bundle_bytes)
+            .unwrap();
 
         // Alice sends first message
-        let msg1 = alice.encrypt_message(
-            alice_session_id.clone(),
-            "Test message".to_string()
-        ).unwrap();
+        let msg1 = alice
+            .encrypt_message(alice_session_id.clone(), "Test message".to_string())
+            .unwrap();
 
         // Bob initializes receiving session
         let first_msg_json = serde_json::json!({
@@ -983,28 +1038,31 @@ mod tests {
             "content": msg1.content
         });
 
-        let bob_session_result = bob.init_receiving_session(
-            "alice_contact".to_string(),
-            alice_bundle_bytes,
-            serde_json::to_vec(&first_msg_json).unwrap()
-        ).unwrap();
+        let bob_session_result = bob
+            .init_receiving_session(
+                "alice_contact".to_string(),
+                alice_bundle_bytes,
+                serde_json::to_vec(&first_msg_json).unwrap(),
+            )
+            .unwrap();
 
         // Verify session IDs are the contact IDs
         assert_eq!(alice_session_id, "bob_contact");
         assert_eq!(bob_session_result.session_id, "alice_contact");
 
         // Both should be able to continue communication
-        let msg2 = bob.encrypt_message(
-            bob_session_result.session_id.clone(),
-            "Reply".to_string()
-        ).unwrap();
+        let msg2 = bob
+            .encrypt_message(bob_session_result.session_id.clone(), "Reply".to_string())
+            .unwrap();
 
-        let decrypted = alice.decrypt_message(
-            alice_session_id,
-            msg2.ephemeral_public_key,
-            msg2.message_number,
-            msg2.content
-        ).unwrap();
+        let decrypted = alice
+            .decrypt_message(
+                alice_session_id,
+                msg2.ephemeral_public_key,
+                msg2.message_number,
+                msg2.content,
+            )
+            .unwrap();
 
         assert_eq!(decrypted, "Reply");
     }
@@ -1017,7 +1075,11 @@ mod tests {
         use crate::crypto::messaging::double_ratchet::DoubleRatchetSession;
         use crate::crypto::suites::classic::ClassicSuiteProvider;
 
-        type TestClient = Client<ClassicSuiteProvider, X3DHProtocol<ClassicSuiteProvider>, DoubleRatchetSession<ClassicSuiteProvider>>;
+        type TestClient = Client<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >;
 
         // Create Alice and Bob
         let mut alice = TestClient::new().unwrap();
@@ -1029,30 +1091,46 @@ mod tests {
         let alice_bundle = alice.key_manager().export_registration_bundle().unwrap();
         let bob_bundle = bob.key_manager().export_registration_bundle().unwrap();
 
-        eprintln!("[DIRECT TEST] Alice identity: {}", hex::encode(&alice_bundle.identity_public));
-        eprintln!("[DIRECT TEST] Bob identity: {}", hex::encode(&bob_bundle.identity_public));
+        eprintln!(
+            "[DIRECT TEST] Alice identity: {}",
+            hex::encode(&alice_bundle.identity_public)
+        );
+        eprintln!(
+            "[DIRECT TEST] Bob identity: {}",
+            hex::encode(&bob_bundle.identity_public)
+        );
 
         // Alice creates session with Bob
-        let alice_identity_pub = ClassicSuiteProvider::kem_public_key_from_bytes(alice_bundle.identity_public.clone());
-        let bob_identity_pub = ClassicSuiteProvider::kem_public_key_from_bytes(bob_bundle.identity_public.clone());
+        let alice_identity_pub =
+            ClassicSuiteProvider::kem_public_key_from_bytes(alice_bundle.identity_public.clone());
+        let bob_identity_pub =
+            ClassicSuiteProvider::kem_public_key_from_bytes(bob_bundle.identity_public.clone());
 
-        alice.init_session("bob", &bob_bundle, &bob_identity_pub).unwrap();
+        alice
+            .init_session("bob", &bob_bundle, &bob_identity_pub)
+            .unwrap();
         eprintln!("[DIRECT TEST] Alice created session with Bob");
 
         // Alice encrypts message
         let plaintext1 = b"Hello Bob!";
         let encrypted1 = alice.encrypt_message("bob", plaintext1).unwrap();
-        eprintln!("[DIRECT TEST] Alice encrypted message, dh_key: {}", hex::encode(&encrypted1.dh_public_key));
+        eprintln!(
+            "[DIRECT TEST] Alice encrypted message, dh_key: {}",
+            hex::encode(&encrypted1.dh_public_key)
+        );
 
         // Bob creates receiving session
-        let alice_ephemeral_pub = ClassicSuiteProvider::kem_public_key_from_bytes(encrypted1.dh_public_key.to_vec());
+        let alice_ephemeral_pub =
+            ClassicSuiteProvider::kem_public_key_from_bytes(encrypted1.dh_public_key.to_vec());
 
-        let (_session_id, decrypted1) = bob.init_receiving_session_with_ephemeral(
-            "alice",
-            &alice_identity_pub,
-            &alice_ephemeral_pub,
-            &encrypted1,
-        ).unwrap();
+        let (_session_id, decrypted1) = bob
+            .init_receiving_session_with_ephemeral(
+                "alice",
+                &alice_identity_pub,
+                &alice_ephemeral_pub,
+                &encrypted1,
+            )
+            .unwrap();
 
         eprintln!("[DIRECT TEST] Bob received and decrypted!");
         assert_eq!(decrypted1, plaintext1);
@@ -1064,10 +1142,16 @@ mod tests {
     fn test_uniffi_flow_with_components() {
         use crate::crypto::client_api::Client;
         use crate::crypto::handshake::x3dh::X3DHProtocol;
-        use crate::crypto::messaging::double_ratchet::{DoubleRatchetSession, EncryptedRatchetMessage};
+        use crate::crypto::messaging::double_ratchet::{
+            DoubleRatchetSession, EncryptedRatchetMessage,
+        };
         use crate::crypto::suites::classic::ClassicSuiteProvider;
 
-        type TestClient = Client<ClassicSuiteProvider, X3DHProtocol<ClassicSuiteProvider>, DoubleRatchetSession<ClassicSuiteProvider>>;
+        type TestClient = Client<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >;
 
         // Create Alice and Bob
         let mut alice = TestClient::new().unwrap();
@@ -1079,18 +1163,25 @@ mod tests {
         let alice_bundle = alice.key_manager().export_registration_bundle().unwrap();
         let bob_bundle = bob.key_manager().export_registration_bundle().unwrap();
 
-        let alice_identity_pub = ClassicSuiteProvider::kem_public_key_from_bytes(alice_bundle.identity_public.clone());
-        let bob_identity_pub = ClassicSuiteProvider::kem_public_key_from_bytes(bob_bundle.identity_public.clone());
+        let alice_identity_pub =
+            ClassicSuiteProvider::kem_public_key_from_bytes(alice_bundle.identity_public.clone());
+        let bob_identity_pub =
+            ClassicSuiteProvider::kem_public_key_from_bytes(bob_bundle.identity_public.clone());
 
         // Alice creates session with Bob
-        alice.init_session("bob", &bob_bundle, &bob_identity_pub).unwrap();
+        alice
+            .init_session("bob", &bob_bundle, &bob_identity_pub)
+            .unwrap();
 
         // Alice encrypts message
         let plaintext1 = b"Hello Bob!";
         let encrypted1 = alice.encrypt_message("bob", plaintext1).unwrap();
 
         eprintln!("[UNIFFI FLOW TEST] Alice encrypted:");
-        eprintln!("  dh_public_key: {}", hex::encode(&encrypted1.dh_public_key));
+        eprintln!(
+            "  dh_public_key: {}",
+            hex::encode(&encrypted1.dh_public_key)
+        );
         eprintln!("  nonce len: {}", encrypted1.nonce.len());
         eprintln!("  ciphertext len: {}", encrypted1.ciphertext.len());
         eprintln!("  suite_id: {}", encrypted1.suite_id);
@@ -1117,15 +1208,20 @@ mod tests {
             ciphertext: ciphertext_parsed,
             nonce: nonce_parsed,
             previous_chain_length: 0,
-            suite_id: alice_bundle.suite_id.as_u16(),  // Use Alice's bundle suite_id
+            suite_id: alice_bundle.suite_id.as_u16(), // Use Alice's bundle suite_id
         };
 
         eprintln!("[UNIFFI FLOW TEST] Reconstructed message:");
-        eprintln!("  dh_public_key: {}", hex::encode(&reconstructed_message.dh_public_key));
+        eprintln!(
+            "  dh_public_key: {}",
+            hex::encode(&reconstructed_message.dh_public_key)
+        );
         eprintln!("  suite_id: {}", reconstructed_message.suite_id);
 
         // Bob creates receiving session with RECONSTRUCTED message
-        let alice_ephemeral_pub = ClassicSuiteProvider::kem_public_key_from_bytes(reconstructed_message.dh_public_key.to_vec());
+        let alice_ephemeral_pub = ClassicSuiteProvider::kem_public_key_from_bytes(
+            reconstructed_message.dh_public_key.to_vec(),
+        );
 
         let result = bob.init_receiving_session_with_ephemeral(
             "alice",

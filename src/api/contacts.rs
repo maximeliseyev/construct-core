@@ -117,14 +117,14 @@ impl ContactManager {
     /// Экспорт контактов для сохранения
     pub fn export_contacts(&self) -> Result<Vec<u8>> {
         let contacts: Vec<&Contact> = self.contacts.values().collect();
-        bincode::serialize(&contacts).map_err(|e| {
+        postcard::to_allocvec(&contacts).map_err(|e| {
             ConstructError::SerializationError(format!("Failed to export contacts: {}", e))
         })
     }
 
     /// Импорт контактов
     pub fn import_contacts(&mut self, data: &[u8]) -> Result<()> {
-        let contacts: Vec<Contact> = bincode::deserialize(data).map_err(|e| {
+        let contacts: Vec<Contact> = postcard::from_bytes(data).map_err(|e| {
             ConstructError::SerializationError(format!("Failed to import contacts: {}", e))
         })?;
 
