@@ -1,13 +1,13 @@
 // Управление ключами
 // Хранение и ротация криптографических ключей
 
+use crate::crypto::CryptoProvider;
+use crate::crypto::SuiteID;
 use crate::utils::error::{ConstructError, Result};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use std::collections::HashMap;
-use x25519_dalek::{PublicKey, StaticSecret};
-use crate::crypto::CryptoProvider;
-use crate::crypto::SuiteID;
 use std::marker::PhantomData;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 /// Build prologue for X3DH signature (как в Noise Protocol)
 /// Prologue включает протокол и suite ID для предотвращения key substitution attacks
@@ -122,16 +122,16 @@ impl<P: CryptoProvider> KeyManager<P> {
     ) -> Result<()> {
         // Создать ключи из байтов
         let identity_secret = P::kem_private_key_from_bytes(identity_secret_bytes);
-        let identity_public = P::from_private_key_to_public_key(&identity_secret)
-            .map_err(ConstructError::Crypto)?;
+        let identity_public =
+            P::from_private_key_to_public_key(&identity_secret).map_err(ConstructError::Crypto)?;
 
         let signing_secret = P::signature_private_key_from_bytes(signing_secret_bytes);
-        let signing_public = P::from_signature_private_to_public(&signing_secret)
-            .map_err(ConstructError::Crypto)?;
+        let signing_public =
+            P::from_signature_private_to_public(&signing_secret).map_err(ConstructError::Crypto)?;
 
         let prekey_secret = P::kem_private_key_from_bytes(prekey_secret_bytes);
-        let prekey_public = P::from_private_key_to_public_key(&prekey_secret)
-            .map_err(ConstructError::Crypto)?;
+        let prekey_public =
+            P::from_private_key_to_public_key(&prekey_secret).map_err(ConstructError::Crypto)?;
 
         // Сохранить ключи
         self.identity_key = Some((identity_secret, identity_public));
@@ -139,7 +139,7 @@ impl<P: CryptoProvider> KeyManager<P> {
         self.current_signed_prekey = Some(PrekeyStore {
             key_pair: (prekey_secret, prekey_public),
             signature: prekey_signature,
-            created_at: 0,  // Не важно для восстановленных ключей
+            created_at: 0, // Не важно для восстановленных ключей
             key_id: 1,
         });
 
@@ -148,44 +148,51 @@ impl<P: CryptoProvider> KeyManager<P> {
 
     /// Получить identity public key
     pub fn identity_public_key(&self) -> Result<&P::KemPublicKey> {
-        self.identity_key
-            .as_ref()
-            .map(|k| &k.1)
-            .ok_or_else(|| ConstructError::Crypto(crate::error::CryptoError::Other("Identity key not initialized".to_string())))
+        self.identity_key.as_ref().map(|k| &k.1).ok_or_else(|| {
+            ConstructError::Crypto(crate::error::CryptoError::Other(
+                "Identity key not initialized".to_string(),
+            ))
+        })
     }
 
     /// Получить identity secret key
     pub fn identity_secret_key(&self) -> Result<&P::KemPrivateKey> {
-        self.identity_key
-            .as_ref()
-            .map(|k| &k.0)
-            .ok_or_else(|| ConstructError::Crypto(crate::error::CryptoError::Other("Identity key not initialized".to_string())))
+        self.identity_key.as_ref().map(|k| &k.0).ok_or_else(|| {
+            ConstructError::Crypto(crate::error::CryptoError::Other(
+                "Identity key not initialized".to_string(),
+            ))
+        })
     }
 
     /// Получить verifying key
     pub fn verifying_key(&self) -> Result<&P::SignaturePublicKey> {
-        self.signing_key
-            .as_ref()
-            .map(|k| &k.1)
-            .ok_or_else(|| ConstructError::Crypto(crate::error::CryptoError::Other("Signing key not initialized".to_string())))
+        self.signing_key.as_ref().map(|k| &k.1).ok_or_else(|| {
+            ConstructError::Crypto(crate::error::CryptoError::Other(
+                "Signing key not initialized".to_string(),
+            ))
+        })
     }
 
     /// Получить текущий signed prekey
     pub fn current_signed_prekey(&self) -> Result<&PrekeyStore<P>> {
-        self.current_signed_prekey
-            .as_ref()
-            .ok_or_else(|| ConstructError::Crypto(crate::error::CryptoError::Other("No signed prekey available".to_string())))
+        self.current_signed_prekey.as_ref().ok_or_else(|| {
+            ConstructError::Crypto(crate::error::CryptoError::Other(
+                "No signed prekey available".to_string(),
+            ))
+        })
     }
 
     /// Ротация signed prekey
     pub fn rotate_signed_prekey(&mut self) -> Result<()> {
         let (signing_key, _) = self.signing_key.as_ref().ok_or_else(|| {
-            ConstructError::Crypto(crate::error::CryptoError::Other("Signing key not initialized".to_string()))
+            ConstructError::Crypto(crate::error::CryptoError::Other(
+                "Signing key not initialized".to_string(),
+            ))
         })?;
 
         // Генерируем новый prekey
         let key_pair = P::generate_kem_keys().map_err(ConstructError::Crypto)?;
-        
+
         // Подписываем signed prekey с prologue (как в Noise Protocol)
         // Prologue включает протокол и suite ID для предотвращения key substitution attacks
         let suite_id = SuiteID::from_u16_unchecked(P::suite_id()); // Provider гарантирует валидный suite_id
@@ -276,7 +283,9 @@ impl<P: CryptoProvider> KeyManager<P> {
     /// Смотрите также:
     /// - client_api.rs:137-161 - проблема в Client::get_registration_bundle()
     /// - uniffi_bindings.rs:93-118 - workaround и полное описание решений
-    pub fn export_registration_bundle(&self) -> Result<crate::crypto::handshake::x3dh::X3DHPublicKeyBundle> {
+    pub fn export_registration_bundle(
+        &self,
+    ) -> Result<crate::crypto::handshake::x3dh::X3DHPublicKeyBundle> {
         let identity_public = self.identity_public_key()?.as_ref().to_vec();
         let verifying_key = self.verifying_key()?.as_ref().to_vec();
         let prekey = self.current_signed_prekey()?;
@@ -291,7 +300,9 @@ impl<P: CryptoProvider> KeyManager<P> {
     }
 
     /// Экспорт публичного key bundle
-    pub fn export_public_bundle(&self) -> Result<crate::crypto::handshake::x3dh::X3DHPublicKeyBundle> {
+    pub fn export_public_bundle(
+        &self,
+    ) -> Result<crate::crypto::handshake::x3dh::X3DHPublicKeyBundle> {
         let identity_public = self.identity_public_key()?.as_ref().to_vec();
         let verifying_key = self.verifying_key()?.as_ref().to_vec();
         let prekey = self.current_signed_prekey()?;
@@ -308,7 +319,9 @@ impl<P: CryptoProvider> KeyManager<P> {
     /// Подписать данные
     pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>> {
         let (signing_key, _) = self.signing_key.as_ref().ok_or_else(|| {
-            ConstructError::Crypto(crate::error::CryptoError::Other("Signing key not initialized".to_string()))
+            ConstructError::Crypto(crate::error::CryptoError::Other(
+                "Signing key not initialized".to_string(),
+            ))
         })?;
 
         P::sign(signing_key, data).map_err(ConstructError::Crypto)
@@ -321,10 +334,11 @@ impl<P: CryptoProvider> KeyManager<P> {
 
     /// Получить signing key для экспорта
     pub fn signing_secret_key(&self) -> Result<&P::SignaturePrivateKey> {
-        self.signing_key
-            .as_ref()
-            .map(|k| &k.0)
-            .ok_or_else(|| ConstructError::Crypto(crate::error::CryptoError::Other("Signing key not initialized".to_string())))
+        self.signing_key.as_ref().map(|k| &k.0).ok_or_else(|| {
+            ConstructError::Crypto(crate::error::CryptoError::Other(
+                "Signing key not initialized".to_string(),
+            ))
+        })
     }
 }
 

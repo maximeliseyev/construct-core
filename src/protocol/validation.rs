@@ -19,10 +19,10 @@ pub fn validate_base64(encoded: &str) -> Result<()> {
 pub fn validate_username(username: &str) -> Result<()> {
     let cfg = Config::global();
     if username.len() < cfg.username_min_length || username.len() > cfg.username_max_length {
-        return Err(ConstructError::ValidationError(
-            format!("Username must be between {} and {} characters",
-                cfg.username_min_length, cfg.username_max_length),
-        ));
+        return Err(ConstructError::ValidationError(format!(
+            "Username must be between {} and {} characters",
+            cfg.username_min_length, cfg.username_max_length
+        )));
     }
 
     // Проверка на допустимые символы (буквы, цифры, подчеркивание, дефис)
@@ -49,7 +49,13 @@ pub fn validate_uuid(uuid: &str) -> Result<()> {
     }
 
     let parts: Vec<&str> = uuid.split('-').collect();
-    if parts.len() != 5 || parts[0].len() != 8 || parts[1].len() != 4 || parts[2].len() != 4 || parts[3].len() != 4 || parts[4].len() != 12 {
+    if parts.len() != 5
+        || parts[0].len() != 8
+        || parts[1].len() != 4
+        || parts[2].len() != 4
+        || parts[3].len() != 4
+        || parts[4].len() != 12
+    {
         return Err(ConstructError::ValidationError(
             "Invalid UUID format".to_string(),
         ));
@@ -67,9 +73,10 @@ pub fn validate_chat_message(msg: &ChatMessage) -> Result<()> {
 
     // Проверка ephemeral key (должен быть 32 байта для X25519)
     if msg.ephemeral_public_key.len() != Config::global().ephemeral_key_size {
-        return Err(ConstructError::ValidationError(
-            format!("Ephemeral public key must be {} bytes", Config::global().ephemeral_key_size),
-        ));
+        return Err(ConstructError::ValidationError(format!(
+            "Ephemeral public key must be {} bytes",
+            Config::global().ephemeral_key_size
+        )));
     }
 
     // Проверка зашифрованного содержимого
@@ -104,29 +111,33 @@ pub fn validate_registration_bundle(bundle: &RegistrationBundle) -> Result<()> {
 
     // Base64 X25519 public key должен быть 44 символа
     if bundle.identity_public.len() != cfg.base64_public_key_length {
-        return Err(ConstructError::ValidationError(
-            format!("Identity public key must be {} characters (32 bytes base64)", cfg.base64_public_key_length),
-        ));
+        return Err(ConstructError::ValidationError(format!(
+            "Identity public key must be {} characters (32 bytes base64)",
+            cfg.base64_public_key_length
+        )));
     }
 
     if bundle.signed_prekey_public.len() != cfg.base64_public_key_length {
-        return Err(ConstructError::ValidationError(
-            format!("Signed prekey public must be {} characters (32 bytes base64)", cfg.base64_public_key_length),
-        ));
+        return Err(ConstructError::ValidationError(format!(
+            "Signed prekey public must be {} characters (32 bytes base64)",
+            cfg.base64_public_key_length
+        )));
     }
 
     // Ed25519 signature должна быть 88 символов (64 bytes base64)
     if bundle.signature.len() != cfg.base64_signature_length {
-        return Err(ConstructError::ValidationError(
-            format!("Signature must be {} characters (64 bytes base64)", cfg.base64_signature_length),
-        ));
+        return Err(ConstructError::ValidationError(format!(
+            "Signature must be {} characters (64 bytes base64)",
+            cfg.base64_signature_length
+        )));
     }
 
     // Ed25519 verifying key должен быть 44 символа
     if bundle.verifying_key.len() != cfg.base64_public_key_length {
-        return Err(ConstructError::ValidationError(
-            format!("Verifying key must be {} characters (32 bytes base64)", cfg.base64_public_key_length),
-        ));
+        return Err(ConstructError::ValidationError(format!(
+            "Verifying key must be {} characters (32 bytes base64)",
+            cfg.base64_public_key_length
+        )));
     }
 
     Ok(())
@@ -139,28 +150,32 @@ pub fn validate_client_message(msg: &ClientMessage) -> Result<()> {
             validate_username(&data.username)?;
             let min_pass = Config::global().password_min_length;
             if data.password.len() < min_pass {
-                return Err(ConstructError::ValidationError(
-                    format!("Password too short (min {} chars)", min_pass),
-                ));
+                return Err(ConstructError::ValidationError(format!(
+                    "Password too short (min {} chars)",
+                    min_pass
+                )));
             }
             // Декодируем и валидируем бандл
-            let msgpack_bytes = general_purpose::STANDARD
-                .decode(&data.public_key)
-                .map_err(|_| {
-                    ConstructError::ValidationError("Invalid Base64 in public_key".to_string())
+            let msgpack_bytes =
+                general_purpose::STANDARD
+                    .decode(&data.public_key)
+                    .map_err(|_| {
+                        ConstructError::ValidationError("Invalid Base64 in public_key".to_string())
+                    })?;
+            let bundle: RegistrationBundle =
+                rmp_serde::from_slice(&msgpack_bytes).map_err(|_| {
+                    ConstructError::ValidationError("Invalid MessagePack in public_key".to_string())
                 })?;
-            let bundle: RegistrationBundle = rmp_serde::from_slice(&msgpack_bytes).map_err(
-                |_| ConstructError::ValidationError("Invalid MessagePack in public_key".to_string()),
-            )?;
             validate_registration_bundle(&bundle)?;
         }
         ClientMessage::Login(data) => {
             validate_username(&data.username)?;
             let min_pass = Config::global().password_min_length;
             if data.password.len() < min_pass {
-                return Err(ConstructError::ValidationError(
-                    format!("Password too short (min {} chars)", min_pass),
-                ));
+                return Err(ConstructError::ValidationError(format!(
+                    "Password too short (min {} chars)",
+                    min_pass
+                )));
             }
         }
         ClientMessage::Connect(data) => {

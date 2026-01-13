@@ -305,26 +305,24 @@ impl<P: CryptoProvider> SecureMessaging<P> for DoubleRatchetSession<P> {
 
         // Apply padding to hide message length (traffic analysis protection)
         use crate::traffic_protection::padding::pad_message_default;
-        let padded_plaintext = pad_message_default(plaintext)
-            .map_err(|e| {
-                tracing::error!(
-                    target: "crypto::double_ratchet",
-                    error = %e,
-                    plaintext_len = plaintext.len(),
-                    "Padding failed"
-                );
-                format!("Padding failed: {}", e)
-            })?;
+        let padded_plaintext = pad_message_default(plaintext).map_err(|e| {
+            tracing::error!(
+                target: "crypto::double_ratchet",
+                error = %e,
+                plaintext_len = plaintext.len(),
+                "Padding failed"
+            );
+            format!("Padding failed: {}", e)
+        })?;
 
-        let (message_key, next_chain_key) =
-            P::kdf_ck(&self.sending_chain_key).map_err(|e| {
-                tracing::error!(
-                    target: "crypto::double_ratchet",
-                    error = %e,
-                    "KDF (CK) failed"
-                );
-                format!("KDF (CK) failed: {}", e)
-            })?;
+        let (message_key, next_chain_key) = P::kdf_ck(&self.sending_chain_key).map_err(|e| {
+            tracing::error!(
+                target: "crypto::double_ratchet",
+                error = %e,
+                "KDF (CK) failed"
+            );
+            format!("KDF (CK) failed: {}", e)
+        })?;
         self.sending_chain_key = next_chain_key;
 
         let message_number = self.sending_chain_length;
@@ -345,17 +343,22 @@ impl<P: CryptoProvider> SecureMessaging<P> for DoubleRatchetSession<P> {
         associated_data.extend_from_slice(&dh_public_key);
         associated_data.extend_from_slice(&message_number.to_be_bytes());
 
-        let ciphertext = P::aead_encrypt(&message_key, &nonce, &padded_plaintext, Some(&associated_data))
-            .map_err(|e| {
-                tracing::error!(
-                    target: "crypto::double_ratchet",
-                    error = %e,
-                    padded_plaintext_len = padded_plaintext.len(),
-                    nonce_len = nonce.len(),
-                    "AEAD encryption failed"
-                );
-                format!("Encryption failed: {}", e)
-            })?;
+        let ciphertext = P::aead_encrypt(
+            &message_key,
+            &nonce,
+            &padded_plaintext,
+            Some(&associated_data),
+        )
+        .map_err(|e| {
+            tracing::error!(
+                target: "crypto::double_ratchet",
+                error = %e,
+                padded_plaintext_len = padded_plaintext.len(),
+                nonce_len = nonce.len(),
+                "AEAD encryption failed"
+            );
+            format!("Encryption failed: {}", e)
+        })?;
 
         trace!(
             target: "crypto::double_ratchet",
@@ -448,7 +451,8 @@ impl<P: CryptoProvider> SecureMessaging<P> for DoubleRatchetSession<P> {
                 self.receiving_chain_length += 1;
 
                 // DoS protection
-                if self.skipped_message_keys.len() > Config::global().max_skipped_messages as usize {
+                if self.skipped_message_keys.len() > Config::global().max_skipped_messages as usize
+                {
                     return Err("Too many skipped messages".to_string());
                 }
             }
@@ -602,8 +606,8 @@ impl<P: CryptoProvider> DoubleRatchetSession<P> {
 
         // Remove padding to recover original plaintext (traffic analysis protection)
         use crate::traffic_protection::padding::unpad_message;
-        let plaintext = unpad_message(&padded_plaintext)
-            .map_err(|e| format!("Unpadding failed: {}", e))?;
+        let plaintext =
+            unpad_message(&padded_plaintext).map_err(|e| format!("Unpadding failed: {}", e))?;
 
         Ok(plaintext)
     }
@@ -624,7 +628,7 @@ impl<P: CryptoProvider> DoubleRatchetSession<P> {
     /// Сериализовать сессию для сохранения
     pub fn to_serializable(&self) -> SerializableSession {
         SerializableSession {
-            version: 1,  // Current protocol version
+            version: 1, // Current protocol version
             suite_id: self.suite_id.as_u16(),
             root_key: self.root_key.as_ref().to_vec(),
             sending_chain_key: self.sending_chain_key.as_ref().to_vec(),
@@ -653,7 +657,10 @@ impl<P: CryptoProvider> DoubleRatchetSession<P> {
     pub fn from_serializable(data: SerializableSession) -> Result<Self, String> {
         // Check version compatibility
         if data.version != 1 {
-            return Err(format!("Unsupported session version: {}. Expected version 1.", data.version));
+            return Err(format!(
+                "Unsupported session version: {}. Expected version 1.",
+                data.version
+            ));
         }
 
         // Валидация suite_id при десериализации
@@ -692,7 +699,7 @@ impl<P: CryptoProvider> DoubleRatchetSession<P> {
 /// Serializable session format for storage
 #[derive(Serialize, Deserialize)]
 pub struct SerializableSession {
-    version: u16,  // Protocol version for future compatibility
+    version: u16, // Protocol version for future compatibility
     suite_id: u16,
     root_key: Vec<u8>,
     sending_chain_key: Vec<u8>,

@@ -1,9 +1,9 @@
 // Публичный API для мессенджера
 // Высокоуровневые методы для работы с мессенджером
 
-pub mod messaging;
 pub mod contacts;
 pub mod crypto;
+pub mod messaging;
 
 /// Главный API для мессенджера
 pub struct MessengerAPI {

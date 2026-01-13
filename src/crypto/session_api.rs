@@ -134,8 +134,8 @@ where
         remote_identity: &P::KemPublicKey,
         contact_id: String,
     ) -> Result<Self, String> {
-        use tracing::{info, error};
-        
+        use tracing::{error, info};
+
         info!(
             target: "crypto::session",
             contact_id = %contact_id,
@@ -143,8 +143,7 @@ where
         );
 
         // 1. Perform handshake (X3DH)
-        let (root_key, initiator_state) =
-            H::perform_as_initiator(local_identity, remote_bundle)
+        let (root_key, initiator_state) = H::perform_as_initiator(local_identity, remote_bundle)
             .map_err(|e| {
                 error!(
                     target: "crypto::session",
@@ -376,11 +375,11 @@ pub type ClassicSession<P> = Session<
 
 #[cfg(test)]
 mod tests {
-    use crate::crypto::SuiteID;
     use super::*;
     use crate::crypto::handshake::x3dh::{X3DHProtocol, X3DHPublicKeyBundle};
     use crate::crypto::messaging::double_ratchet::DoubleRatchetSession;
     use crate::crypto::suites::classic::ClassicSuiteProvider;
+    use crate::crypto::SuiteID;
 
     type TestSession = Session<
         ClassicSuiteProvider,
@@ -401,11 +400,8 @@ mod tests {
             ClassicSuiteProvider::generate_kem_keys().unwrap();
         let (bob_signing_key, bob_verifying_key) =
             ClassicSuiteProvider::generate_signature_keys().unwrap();
-        let bob_signature = ClassicSuiteProvider::sign(
-            &bob_signing_key,
-            bob_signed_prekey_pub.as_ref(),
-        )
-        .unwrap();
+        let bob_signature =
+            ClassicSuiteProvider::sign(&bob_signing_key, bob_signed_prekey_pub.as_ref()).unwrap();
 
         let bob_bundle = X3DHPublicKeyBundle {
             identity_public: bob_identity_pub.clone(),
@@ -444,11 +440,8 @@ mod tests {
             ClassicSuiteProvider::generate_kem_keys().unwrap();
         let (bob_signing_key, bob_verifying_key) =
             ClassicSuiteProvider::generate_signature_keys().unwrap();
-        let bob_signature = ClassicSuiteProvider::sign(
-            &bob_signing_key,
-            bob_signed_prekey_pub.as_ref(),
-        )
-        .unwrap();
+        let bob_signature =
+            ClassicSuiteProvider::sign(&bob_signing_key, bob_signed_prekey_pub.as_ref()).unwrap();
 
         let bob_bundle = X3DHPublicKeyBundle {
             identity_public: bob_identity_pub.clone(),
@@ -472,9 +465,8 @@ mod tests {
         let encrypted1 = alice_session.encrypt(plaintext1).unwrap();
 
         // Bob extracts Alice's ephemeral public key from first message
-        let alice_ephemeral_pub = ClassicSuiteProvider::kem_public_key_from_bytes(
-            encrypted1.dh_public_key.to_vec(),
-        );
+        let alice_ephemeral_pub =
+            ClassicSuiteProvider::kem_public_key_from_bytes(encrypted1.dh_public_key.to_vec());
 
         // Bob initializes session as responder
         // ⚠️ ВАЖНО: init_as_responder теперь возвращает (session, plaintext первого сообщения)
@@ -525,11 +517,8 @@ mod tests {
             ClassicSuiteProvider::generate_kem_keys().unwrap();
         let (bob_signing_key, bob_verifying_key) =
             ClassicSuiteProvider::generate_signature_keys().unwrap();
-        let bob_signature = ClassicSuiteProvider::sign(
-            &bob_signing_key,
-            bob_signed_prekey_pub.as_ref(),
-        )
-        .unwrap();
+        let bob_signature =
+            ClassicSuiteProvider::sign(&bob_signing_key, bob_signed_prekey_pub.as_ref()).unwrap();
 
         let bob_bundle = X3DHPublicKeyBundle {
             identity_public: bob_identity_pub.clone(),

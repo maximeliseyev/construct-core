@@ -160,8 +160,7 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
         let mut message_to_sign = Vec::with_capacity(prologue.len() + signed_prekey_bytes.len());
         message_to_sign.extend_from_slice(&prologue);
         message_to_sign.extend_from_slice(signed_prekey_bytes);
-        let signature =
-            P::sign(&signing_key, &message_to_sign).map_err(|e| e.to_string())?;
+        let signature = P::sign(&signing_key, &message_to_sign).map_err(|e| e.to_string())?;
 
         debug!(
             target: "crypto::x3dh",
@@ -203,7 +202,7 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
         const EXPECTED_KEM_KEY_SIZE: usize = 32; // X25519 public key size
         const EXPECTED_SIGNATURE_KEY_SIZE: usize = 32; // Ed25519 public key size
         const EXPECTED_SIGNATURE_SIZE: usize = 64; // Ed25519 signature size
-        
+
         if remote_bundle.identity_public.len() != EXPECTED_KEM_KEY_SIZE {
             return Err(format!(
                 "Invalid identity_public key size: expected {} bytes, got {} bytes",
@@ -211,7 +210,7 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
                 remote_bundle.identity_public.len()
             ));
         }
-        
+
         if remote_bundle.signed_prekey_public.len() != EXPECTED_KEM_KEY_SIZE {
             return Err(format!(
                 "Invalid signed_prekey_public key size: expected {} bytes, got {} bytes",
@@ -219,7 +218,7 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
                 remote_bundle.signed_prekey_public.len()
             ));
         }
-        
+
         if remote_bundle.verifying_key.len() != EXPECTED_SIGNATURE_KEY_SIZE {
             return Err(format!(
                 "Invalid verifying_key size: expected {} bytes, got {} bytes",
@@ -227,7 +226,7 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
                 remote_bundle.verifying_key.len()
             ));
         }
-        
+
         if remote_bundle.signature.len() != EXPECTED_SIGNATURE_SIZE {
             return Err(format!(
                 "Invalid signature size: expected {} bytes, got {} bytes",
@@ -237,9 +236,12 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
         }
 
         // Parse remote keys from bundle
-        let remote_identity_public = P::kem_public_key_from_bytes(remote_bundle.identity_public.clone());
-        let remote_signed_prekey_public = P::kem_public_key_from_bytes(remote_bundle.signed_prekey_public.clone());
-        let remote_verifying_key = P::signature_public_key_from_bytes(remote_bundle.verifying_key.clone());
+        let remote_identity_public =
+            P::kem_public_key_from_bytes(remote_bundle.identity_public.clone());
+        let remote_signed_prekey_public =
+            P::kem_public_key_from_bytes(remote_bundle.signed_prekey_public.clone());
+        let remote_verifying_key =
+            P::signature_public_key_from_bytes(remote_bundle.verifying_key.clone());
 
         // 1. Verify signature on signed prekey with backward compatibility
         // Сначала пробуем новый формат (с prologue), если не получается - старый (без prologue)
@@ -251,20 +253,21 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
             signature_len = remote_bundle.signature.len(),
             "Verifying signed prekey signature (with backward compatibility)"
         );
-        
+
         // Попытка 1: Новый формат с prologue (как в Noise Protocol)
         let prologue = build_prologue(remote_bundle.suite_id);
         let remote_signed_prekey_bytes: &[u8] = remote_signed_prekey_public.as_ref();
-        let mut message_with_prologue = Vec::with_capacity(prologue.len() + remote_signed_prekey_bytes.len());
+        let mut message_with_prologue =
+            Vec::with_capacity(prologue.len() + remote_signed_prekey_bytes.len());
         message_with_prologue.extend_from_slice(&prologue);
         message_with_prologue.extend_from_slice(remote_signed_prekey_bytes);
-        
+
         let verification_result = P::verify(
             &remote_verifying_key,
             &message_with_prologue,
             &remote_bundle.signature,
         );
-        
+
         match verification_result {
             Ok(()) => {
                 debug!(
@@ -286,7 +289,7 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
                     remote_signed_prekey_public.as_ref(),
                     &remote_bundle.signature,
                 );
-                
+
                 match old_format_result {
                     Ok(()) => {
                         debug!(
@@ -308,7 +311,7 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
                             remote_bundle.identity_public.as_ref(),
                             &remote_bundle.signature,
                         );
-                        
+
                         match identity_result {
                             Ok(()) => {
                                 debug!(
@@ -391,9 +394,7 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
         // ВАЖНО: Возвращаем ephemeral_private в InitiatorState
         // Он будет использован как первый DH ratchet key в Double Ratchet!
         // ===================================================================
-        let initiator_state = InitiatorState {
-            ephemeral_private,
-        };
+        let initiator_state = InitiatorState { ephemeral_private };
 
         Ok((root_key, initiator_state))
     }
@@ -442,13 +443,8 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
 
         // Derive root key using HKDF
         debug!(target: "crypto::x3dh", "Deriving root key with HKDF");
-        let root_key = P::hkdf_derive_key(
-            b"",
-            &combined_dh,
-            b"X3DH Root Key",
-            32,
-        )
-        .map_err(|e| format!("HKDF derivation failed: {}", e))?;
+        let root_key = P::hkdf_derive_key(b"", &combined_dh, b"X3DH Root Key", 32)
+            .map_err(|e| format!("HKDF derivation failed: {}", e))?;
 
         debug!(
             target: "crypto::x3dh",
@@ -468,18 +464,23 @@ mod tests {
     #[test]
     fn test_x3dh_alice_bob_get_same_root_key() {
         // Bob регистрируется
-        let _bob_bundle = X3DHProtocol::<ClassicSuiteProvider>::generate_registration_bundle().unwrap();
+        let _bob_bundle =
+            X3DHProtocol::<ClassicSuiteProvider>::generate_registration_bundle().unwrap();
 
         // В реальности Bob сохраняет private keys, а public bundle идёт на сервер
         // Для теста мы эмулируем это через повторную генерацию с теми же ключами
 
         // Alice генерирует свои ключи
-        let (alice_identity_priv, alice_identity_pub) = ClassicSuiteProvider::generate_kem_keys().unwrap();
+        let (alice_identity_priv, alice_identity_pub) =
+            ClassicSuiteProvider::generate_kem_keys().unwrap();
 
         // Bob генерирует ключи (эмуляция - в реальности уже есть)
-        let (bob_identity_priv, bob_identity_pub) = ClassicSuiteProvider::generate_kem_keys().unwrap();
-        let (bob_signed_prekey_priv, bob_signed_prekey_pub) = ClassicSuiteProvider::generate_kem_keys().unwrap();
-        let (bob_signing_key, bob_verifying_key) = ClassicSuiteProvider::generate_signature_keys().unwrap();
+        let (bob_identity_priv, bob_identity_pub) =
+            ClassicSuiteProvider::generate_kem_keys().unwrap();
+        let (bob_signed_prekey_priv, bob_signed_prekey_pub) =
+            ClassicSuiteProvider::generate_kem_keys().unwrap();
+        let (bob_signing_key, bob_verifying_key) =
+            ClassicSuiteProvider::generate_signature_keys().unwrap();
 
         // Bob подписывает свой signed prekey С prologue (как в реальном коде)
         let suite_id = SuiteID::from_u16_unchecked(ClassicSuiteProvider::suite_id());
@@ -500,13 +501,17 @@ mod tests {
         };
 
         // Alice выполняет X3DH как initiator
-        let (alice_root_key, alice_state) = X3DHProtocol::<ClassicSuiteProvider>::perform_as_initiator(
-            &alice_identity_priv,
-            &bob_public_bundle,
-        ).unwrap();
+        let (alice_root_key, alice_state) =
+            X3DHProtocol::<ClassicSuiteProvider>::perform_as_initiator(
+                &alice_identity_priv,
+                &bob_public_bundle,
+            )
+            .unwrap();
 
         // Alice отправляет первое сообщение с ephemeral_public
-        let alice_ephemeral_pub = ClassicSuiteProvider::from_private_key_to_public_key(&alice_state.ephemeral_private).unwrap();
+        let alice_ephemeral_pub =
+            ClassicSuiteProvider::from_private_key_to_public_key(&alice_state.ephemeral_private)
+                .unwrap();
 
         // Bob получает Alice's ephemeral public key из первого сообщения
         // Bob выполняет X3DH как responder
@@ -515,10 +520,14 @@ mod tests {
             &bob_signed_prekey_priv,
             &alice_identity_pub,
             &alice_ephemeral_pub,
-        ).unwrap();
+        )
+        .unwrap();
 
         // ПРОВЕРКА: Alice и Bob должны получить ОДИНАКОВЫЙ root key
-        assert_eq!(alice_root_key, bob_root_key, "X3DH must produce same root key for Alice and Bob");
+        assert_eq!(
+            alice_root_key, bob_root_key,
+            "X3DH must produce same root key for Alice and Bob"
+        );
         assert_eq!(alice_root_key.len(), 32, "Root key must be 32 bytes");
     }
 
@@ -548,7 +557,11 @@ mod tests {
         assert!(result.is_err(), "X3DH must reject invalid signature");
 
         match result {
-            Err(e) => assert!(e.contains("Signature verification failed"), "Error message: {}", e),
+            Err(e) => assert!(
+                e.contains("Signature verification failed"),
+                "Error message: {}",
+                e
+            ),
             Ok(_) => panic!("Expected error but got Ok"),
         }
     }
@@ -557,14 +570,18 @@ mod tests {
     fn test_prologue_format() {
         let suite_id = SuiteID::from_u16_unchecked(ClassicSuiteProvider::suite_id());
         let prologue = build_prologue(suite_id);
-        
+
         // Prologue должен быть: "X3DH" (4 bytes) + suite_id (2 bytes, little-endian)
         assert_eq!(prologue.len(), 6, "Prologue should be 6 bytes (4 + 2)");
         assert_eq!(&prologue[0..4], b"X3DH", "First 4 bytes should be 'X3DH'");
-        
+
         // Suite ID 1 = 0x0001 in little-endian = [0x01, 0x00]
         let expected_suite_id_bytes = suite_id.as_u16().to_le_bytes();
-        assert_eq!(&prologue[4..6], &expected_suite_id_bytes, "Last 2 bytes should be suite_id in little-endian");
+        assert_eq!(
+            &prologue[4..6],
+            &expected_suite_id_bytes,
+            "Last 2 bytes should be suite_id in little-endian"
+        );
     }
 
     #[test]
@@ -572,31 +589,32 @@ mod tests {
         // Генерируем ключи
         let (signing_key, verifying_key) = ClassicSuiteProvider::generate_signature_keys().unwrap();
         let (_, signed_prekey_pub) = ClassicSuiteProvider::generate_kem_keys().unwrap();
-        
+
         // Создаём подпись С prologue
         let suite_id = SuiteID::from_u16_unchecked(ClassicSuiteProvider::suite_id());
         let prologue = build_prologue(suite_id);
         let signed_prekey_bytes: &[u8] = signed_prekey_pub.as_ref();
-        let mut message_with_prologue = Vec::with_capacity(prologue.len() + signed_prekey_bytes.len());
+        let mut message_with_prologue =
+            Vec::with_capacity(prologue.len() + signed_prekey_bytes.len());
         message_with_prologue.extend_from_slice(&prologue);
         message_with_prologue.extend_from_slice(signed_prekey_bytes);
         let signature = ClassicSuiteProvider::sign(&signing_key, &message_with_prologue).unwrap();
-        
+
         // Проверка 1: Подпись должна пройти проверку С prologue
-        let verify_result = ClassicSuiteProvider::verify(
-            &verifying_key,
-            &message_with_prologue,
-            &signature,
+        let verify_result =
+            ClassicSuiteProvider::verify(&verifying_key, &message_with_prologue, &signature);
+        assert!(
+            verify_result.is_ok(),
+            "Signature with prologue should verify successfully"
         );
-        assert!(verify_result.is_ok(), "Signature with prologue should verify successfully");
-        
+
         // Проверка 2: Подпись НЕ должна пройти проверку БЕЗ prologue
-        let verify_result_old = ClassicSuiteProvider::verify(
-            &verifying_key,
-            signed_prekey_pub.as_ref(),
-            &signature,
+        let verify_result_old =
+            ClassicSuiteProvider::verify(&verifying_key, signed_prekey_pub.as_ref(), &signature);
+        assert!(
+            verify_result_old.is_err(),
+            "Signature with prologue should NOT verify without prologue"
         );
-        assert!(verify_result_old.is_err(), "Signature with prologue should NOT verify without prologue");
     }
 
     #[test]
@@ -604,10 +622,11 @@ mod tests {
         // Генерируем ключи
         let (signing_key, verifying_key) = ClassicSuiteProvider::generate_signature_keys().unwrap();
         let (_, signed_prekey_pub) = ClassicSuiteProvider::generate_kem_keys().unwrap();
-        
+
         // Создаём подпись БЕЗ prologue (старый формат)
-        let signature_old = ClassicSuiteProvider::sign(&signing_key, signed_prekey_pub.as_ref()).unwrap();
-        
+        let signature_old =
+            ClassicSuiteProvider::sign(&signing_key, signed_prekey_pub.as_ref()).unwrap();
+
         // Создаём bundle со старой подписью
         let (_, identity_pub) = ClassicSuiteProvider::generate_kem_keys().unwrap();
         let old_bundle = X3DHPublicKeyBundle {
@@ -617,15 +636,18 @@ mod tests {
             verifying_key,
             suite_id: SuiteID::from_u16_unchecked(ClassicSuiteProvider::suite_id()),
         };
-        
+
         // Проверка: perform_as_initiator должен принять старую подпись (обратная совместимость)
         let (alice_identity_priv, _) = ClassicSuiteProvider::generate_kem_keys().unwrap();
         let result = X3DHProtocol::<ClassicSuiteProvider>::perform_as_initiator(
             &alice_identity_priv,
             &old_bundle,
         );
-        
-        assert!(result.is_ok(), "X3DH should accept old format signature (backward compatibility)");
+
+        assert!(
+            result.is_ok(),
+            "X3DH should accept old format signature (backward compatibility)"
+        );
     }
 
     #[test]
@@ -633,16 +655,18 @@ mod tests {
         // Генерируем ключи
         let (signing_key, verifying_key) = ClassicSuiteProvider::generate_signature_keys().unwrap();
         let (_, signed_prekey_pub) = ClassicSuiteProvider::generate_kem_keys().unwrap();
-        
+
         // Создаём подпись С prologue (новый формат)
         let suite_id = SuiteID::from_u16_unchecked(ClassicSuiteProvider::suite_id());
         let prologue = build_prologue(suite_id);
         let signed_prekey_bytes: &[u8] = signed_prekey_pub.as_ref();
-        let mut message_with_prologue = Vec::with_capacity(prologue.len() + signed_prekey_bytes.len());
+        let mut message_with_prologue =
+            Vec::with_capacity(prologue.len() + signed_prekey_bytes.len());
         message_with_prologue.extend_from_slice(&prologue);
         message_with_prologue.extend_from_slice(signed_prekey_bytes);
-        let signature_new = ClassicSuiteProvider::sign(&signing_key, &message_with_prologue).unwrap();
-        
+        let signature_new =
+            ClassicSuiteProvider::sign(&signing_key, &message_with_prologue).unwrap();
+
         // Создаём bundle с новой подписью
         let (_, identity_pub) = ClassicSuiteProvider::generate_kem_keys().unwrap();
         let new_bundle = X3DHPublicKeyBundle {
@@ -652,14 +676,17 @@ mod tests {
             verifying_key,
             suite_id: SuiteID::from_u16_unchecked(ClassicSuiteProvider::suite_id()),
         };
-        
+
         // Проверка: perform_as_initiator должен принять новую подпись
         let (alice_identity_priv, _) = ClassicSuiteProvider::generate_kem_keys().unwrap();
         let result = X3DHProtocol::<ClassicSuiteProvider>::perform_as_initiator(
             &alice_identity_priv,
             &new_bundle,
         );
-        
-        assert!(result.is_ok(), "X3DH should accept new format signature with prologue");
+
+        assert!(
+            result.is_ok(),
+            "X3DH should accept new format signature with prologue"
+        );
     }
 }

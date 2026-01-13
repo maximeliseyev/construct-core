@@ -52,7 +52,8 @@ pub fn encrypt_message<P: CryptoProvider>(
     plaintext: &str,
 ) -> Result<EncryptedMessage>
 where
-    X3DHProtocol<P>: KeyAgreement<P, PublicKeyBundle = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle>,
+    X3DHProtocol<P>:
+        KeyAgreement<P, PublicKeyBundle = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle>,
     <X3DHProtocol<P> as KeyAgreement<P>>::SharedSecret: AsRef<[u8]>,
 {
     let encrypted = client
@@ -71,7 +72,8 @@ pub fn decrypt_message<P: CryptoProvider>(
     encrypted: EncryptedMessage,
 ) -> Result<String>
 where
-    X3DHProtocol<P>: KeyAgreement<P, PublicKeyBundle = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle>,
+    X3DHProtocol<P>:
+        KeyAgreement<P, PublicKeyBundle = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle>,
     <X3DHProtocol<P> as KeyAgreement<P>>::SharedSecret: AsRef<[u8]>,
 {
     let ratchet_msg: EncryptedRatchetMessage = encrypted.into();
@@ -91,7 +93,8 @@ pub fn init_session<P: CryptoProvider>(
     remote_bundle: &crate::api::crypto::KeyBundle,
 ) -> Result<String>
 where
-    X3DHProtocol<P>: KeyAgreement<P, PublicKeyBundle = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle>,
+    X3DHProtocol<P>:
+        KeyAgreement<P, PublicKeyBundle = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle>,
     <X3DHProtocol<P> as KeyAgreement<P>>::SharedSecret: AsRef<[u8]>,
 {
     use crate::crypto::handshake::x3dh::X3DHPublicKeyBundle;
@@ -121,7 +124,8 @@ pub fn init_receiving_session<P: CryptoProvider>(
     first_encrypted_msg: &EncryptedMessage,
 ) -> Result<String>
 where
-    X3DHProtocol<P>: KeyAgreement<P, PublicKeyBundle = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle>,
+    X3DHProtocol<P>:
+        KeyAgreement<P, PublicKeyBundle = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle>,
     <X3DHProtocol<P> as KeyAgreement<P>>::SharedSecret: AsRef<[u8]>,
 {
     use crate::crypto::handshake::x3dh::X3DHPublicKeyBundle;
@@ -136,12 +140,10 @@ where
 
 /// Сериализовать зашифрованное сообщение в JSON
 pub fn serialize_encrypted_message(msg: &EncryptedMessage) -> Result<String> {
-    serde_json::to_string(msg)
-        .map_err(|e| ConstructError::SerializationError(e.to_string()))
+    serde_json::to_string(msg).map_err(|e| ConstructError::SerializationError(e.to_string()))
 }
 
 /// Десериализовать зашифрованное сообщение из JSON
 pub fn deserialize_encrypted_message(json: &str) -> Result<EncryptedMessage> {
-    serde_json::from_str(json)
-        .map_err(|e| ConstructError::SerializationError(e.to_string()))
+    serde_json::from_str(json).map_err(|e| ConstructError::SerializationError(e.to_string()))
 }

@@ -14,7 +14,6 @@ pub struct Config {
     // ============================================
     // КРИПТОГРАФИЧЕСКИЕ ПАРАМЕТРЫ
     // ============================================
-
     /// PBKDF2: количество итераций для деривации мастер-ключа из пароля
     pub pbkdf2_iterations: u32,
 
@@ -45,7 +44,6 @@ pub struct Config {
     // ============================================
     // DOUBLE RATCHET ПАРАМЕТРЫ
     // ============================================
-
     /// Максимальное количество пропущенных сообщений (DoS защита)
     pub max_skipped_messages: u32,
 
@@ -56,7 +54,6 @@ pub struct Config {
     // ============================================
     // ВАЛИДАЦИЯ
     // ============================================
-
     /// Минимальная длина username
     pub username_min_length: usize,
 
@@ -81,7 +78,6 @@ pub struct Config {
     // ============================================
     // ВРЕМЕННЫЕ ПАРАМЕТРЫ
     // ============================================
-
     /// Максимальное время в будущем для timestamp сообщения (в секундах)
     /// По умолчанию: 5 минут
     pub message_timestamp_future_tolerance_secs: i64,
@@ -97,7 +93,6 @@ pub struct Config {
     // ============================================
     // СЕТЕВЫЕ ПАРАМЕТРЫ
     // ============================================
-
     /// Начальная задержка для exponential backoff при переподключении (в миллисекундах)
     pub websocket_retry_initial_ms: u64,
 
@@ -138,7 +133,7 @@ impl Config {
 
             // Временные параметры
             message_timestamp_future_tolerance_secs: 300, // 5 minutes
-            message_timestamp_past_tolerance_secs: 3600, // 1 hour
+            message_timestamp_past_tolerance_secs: 3600,  // 1 hour
             prekey_cleanup_period_secs: 30 * 24 * 60 * 60, // 30 days
 
             // Сетевые параметры
@@ -193,7 +188,8 @@ impl Config {
     ///
     /// Возвращает ошибку, если конфигурация уже была инициализирована
     pub fn init() -> Result<(), &'static str> {
-        GLOBAL_CONFIG.set(Self::default())
+        GLOBAL_CONFIG
+            .set(Self::default())
             .map_err(|_| "Config already initialized")
     }
 
@@ -203,7 +199,8 @@ impl Config {
     ///
     /// Возвращает ошибку, если конфигурация уже была инициализирована
     pub fn init_from_env() -> Result<(), &'static str> {
-        GLOBAL_CONFIG.set(Self::from_env())
+        GLOBAL_CONFIG
+            .set(Self::from_env())
             .map_err(|_| "Config already initialized")
     }
 
@@ -213,7 +210,8 @@ impl Config {
     ///
     /// Возвращает ошибку, если конфигурация уже была инициализирована
     pub fn init_with(config: Config) -> Result<(), &'static str> {
-        GLOBAL_CONFIG.set(config)
+        GLOBAL_CONFIG
+            .set(config)
             .map_err(|_| "Config already initialized")
     }
 

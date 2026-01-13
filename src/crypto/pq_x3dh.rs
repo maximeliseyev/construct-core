@@ -2,7 +2,7 @@
 #![cfg(feature = "post-quantum")]
 
 use pqc_kyber::KyberKeypair;
-use x25519_dalek::{StaticSecret, PublicKey};
+use x25519_dalek::{PublicKey, StaticSecret};
 
 // TODO: These should be properly defined with actual key sizes from the pqc crates.
 // Using Vec<u8> for now as per the documentation.
@@ -12,12 +12,12 @@ use x25519_dalek::{StaticSecret, PublicKey};
 /// A post-quantum X3DH bundle, containing both classical and PQC keys.
 pub struct PQX3DHBundle {
     // Классические ключи (для обратной совместимости)
-    pub identity_public: [u8; 32],           // X25519
-    pub signed_prekey_public: [u8; 32],      // X25519
-    pub signature: [u8; 64],                 // Ed25519
-    
+    pub identity_public: [u8; 32],      // X25519
+    pub signed_prekey_public: [u8; 32], // X25519
+    pub signature: [u8; 64],            // Ed25519
+
     // Пост-квантовые ключи
-    pub kyber_public_key: Vec<u8>,           // Kyber-768 (1184 байт)
-    pub kyber_prekey_public: Vec<u8>,        // Kyber для prekey
-    pub pq_signature: Vec<u8>,               // Dilithium подпись
+    pub kyber_public_key: Vec<u8>,    // Kyber-768 (1184 байт)
+    pub kyber_prekey_public: Vec<u8>, // Kyber для prekey
+    pub pq_signature: Vec<u8>,        // Dilithium подпись
 }

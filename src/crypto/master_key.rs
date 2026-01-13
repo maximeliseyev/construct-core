@@ -24,9 +24,9 @@ const KEY_LENGTH: usize = 32;
 #[derive(Zeroize)]
 #[zeroize(drop)]
 pub struct PrivateKeys {
-    pub identity_secret: [u8; 32],       // X25519 StaticSecret
-    pub signing_key: [u8; 32],           // Ed25519 SigningKey
-    pub signed_prekey_secret: [u8; 32],  // X25519 prekey secret
+    pub identity_secret: [u8; 32],      // X25519 StaticSecret
+    pub signing_key: [u8; 32],          // Ed25519 SigningKey
+    pub signed_prekey_secret: [u8; 32], // X25519 prekey secret
 }
 
 impl PrivateKeys {
@@ -157,7 +157,11 @@ pub fn decrypt_private_keys(
     let prekey_secret = to_array_32(&prekey_bytes)?;
     let signing_key = to_array_32(&signing_bytes)?;
 
-    Ok(PrivateKeys::new(identity_secret, signing_key, prekey_secret))
+    Ok(PrivateKeys::new(
+        identity_secret,
+        signing_key,
+        prekey_secret,
+    ))
 }
 
 /// Зашифровать данные с использованием AES-256-GCM
@@ -170,9 +174,11 @@ fn encrypt_data(cipher: &Aes256Gcm, data: &[u8]) -> Result<Vec<u8>> {
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     // Шифруем
-    let ciphertext = cipher
-        .encrypt(nonce, data)
-        .map_err(|e| ConstructError::Crypto(crate::error::CryptoError::AeadEncryptionError(e.to_string())))?;
+    let ciphertext = cipher.encrypt(nonce, data).map_err(|e| {
+        ConstructError::Crypto(crate::error::CryptoError::AeadEncryptionError(
+            e.to_string(),
+        ))
+    })?;
 
     // Комбинируем nonce + ciphertext
     let mut result = Vec::with_capacity(nonce_length + ciphertext.len());
@@ -197,9 +203,11 @@ fn decrypt_data(cipher: &Aes256Gcm, data: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
     let nonce = Nonce::from_slice(nonce_bytes);
 
     // Расшифровываем
-    let plaintext = cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|e| ConstructError::Crypto(crate::error::CryptoError::AeadDecryptionError(e.to_string())))?;
+    let plaintext = cipher.decrypt(nonce, ciphertext).map_err(|e| {
+        ConstructError::Crypto(crate::error::CryptoError::AeadDecryptionError(
+            e.to_string(),
+        ))
+    })?;
 
     Ok(Zeroizing::new(plaintext))
 }
@@ -226,9 +234,10 @@ fn to_array_32(vec: &[u8]) -> Result<[u8; 32]> {
 pub fn validate_password(password: &str) -> Result<()> {
     let min_length = Config::global().password_min_length;
     if password.len() < min_length {
-        return Err(ConstructError::ValidationError(
-            format!("Password must be at least {} characters long", min_length),
-        ));
+        return Err(ConstructError::ValidationError(format!(
+            "Password must be at least {} characters long",
+            min_length
+        )));
     }
 
     let has_letter = password.chars().any(|c| c.is_alphabetic());
@@ -287,7 +296,14 @@ mod tests {
 
         // Шифруем (с тестовой подписью)
         let test_signature = vec![4u8; 64];
-        let encrypted = encrypt_private_keys(&keys, &master_key, salt, "user123".to_string(), test_signature.clone()).unwrap();
+        let encrypted = encrypt_private_keys(
+            &keys,
+            &master_key,
+            salt,
+            "user123".to_string(),
+            test_signature.clone(),
+        )
+        .unwrap();
 
         // Проверяем, что данные зашифрованы (не равны оригиналу)
         assert_ne!(encrypted.encrypted_identity_private, identity.to_vec());
@@ -317,7 +333,14 @@ mod tests {
         let keys = PrivateKeys::new([1u8; 32], [2u8; 32], [3u8; 32]);
 
         let test_signature = vec![4u8; 64];
-        let encrypted = encrypt_private_keys(&keys, &correct_key, salt, "user123".to_string(), test_signature).unwrap();
+        let encrypted = encrypt_private_keys(
+            &keys,
+            &correct_key,
+            salt,
+            "user123".to_string(),
+            test_signature,
+        )
+        .unwrap();
 
         // Попытка расшифровать неправильным ключом должна провалиться
         let result = decrypt_private_keys(&encrypted, &wrong_key);
@@ -361,7 +384,8 @@ mod tests {
 
         // Зашифрованные данные должны быть больше оригинала (nonce + ciphertext + tag)
         assert!(encrypted.len() > data.len());
-        let expected_len = Config::global().nonce_length + data.len() + Config::global().gcm_tag_length;
+        let expected_len =
+            Config::global().nonce_length + data.len() + Config::global().gcm_tag_length;
         assert_eq!(encrypted.len(), expected_len);
     }
 }

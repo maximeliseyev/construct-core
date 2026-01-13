@@ -41,7 +41,7 @@ impl From<KeyBundle> for X3DHPublicKeyBundle {
                 );
                 SuiteID::CLASSIC
             });
-        
+
         Self {
             identity_public: bundle.identity_public,
             signed_prekey_public: bundle.signed_prekey_public,
@@ -93,8 +93,10 @@ where
         use base64::Engine;
         let bundle = self.client.key_manager().export_registration_bundle()?;
         Ok(RegistrationBundleB64 {
-            identity_public: base64::engine::general_purpose::STANDARD.encode(&bundle.identity_public),
-            signed_prekey_public: base64::engine::general_purpose::STANDARD.encode(&bundle.signed_prekey_public),
+            identity_public: base64::engine::general_purpose::STANDARD
+                .encode(&bundle.identity_public),
+            signed_prekey_public: base64::engine::general_purpose::STANDARD
+                .encode(&bundle.signed_prekey_public),
             signature: base64::engine::general_purpose::STANDARD.encode(&bundle.signature),
             verifying_key: base64::engine::general_purpose::STANDARD.encode(&bundle.verifying_key),
             suite_id: bundle.suite_id.as_u16().to_string(),
@@ -105,13 +107,19 @@ where
     /// Используется для создания signature в UploadableKeyBundle
     pub fn sign_bundle_data(&self, bundle_data_json: Vec<u8>) -> Result<String> {
         use base64::Engine;
-        
+
         // Получить подпись от KeyManager
-        let signature = self.client.key_manager().sign(&bundle_data_json)
-            .map_err(|e| ConstructError::Crypto(crate::error::CryptoError::Other(
-                format!("Failed to sign BundleData: {:?}", e)
-            )))?;
-        
+        let signature = self
+            .client
+            .key_manager()
+            .sign(&bundle_data_json)
+            .map_err(|e| {
+                ConstructError::Crypto(crate::error::CryptoError::Other(format!(
+                    "Failed to sign BundleData: {:?}",
+                    e
+                )))
+            })?;
+
         // Base64-encode подпись
         Ok(base64::engine::general_purpose::STANDARD.encode(&signature))
     }
@@ -239,7 +247,8 @@ where
     }
 }
 
-pub fn create_client<P: CryptoProvider>() -> Result<Client<P, X3DHProtocol<P>, DoubleRatchetSession<P>>>
+pub fn create_client<P: CryptoProvider>(
+) -> Result<Client<P, X3DHProtocol<P>, DoubleRatchetSession<P>>>
 where
     X3DHProtocol<P>: KeyAgreement<P, PublicKeyBundle = X3DHPublicKeyBundle>,
     <X3DHProtocol<P> as KeyAgreement<P>>::SharedSecret: AsRef<[u8]>,
@@ -249,13 +258,15 @@ where
 }
 
 pub fn get_registration_bundle<P: CryptoProvider>(
-    client: &Client<P, X3DHProtocol<P>, DoubleRatchetSession<P>>
+    client: &Client<P, X3DHProtocol<P>, DoubleRatchetSession<P>>,
 ) -> Result<KeyBundle>
 where
     X3DHProtocol<P>: KeyAgreement<P, PublicKeyBundle = X3DHPublicKeyBundle>,
     <X3DHProtocol<P> as KeyAgreement<P>>::SharedSecret: AsRef<[u8]>,
 {
-    let bundle = client.key_manager().export_registration_bundle()
+    let bundle = client
+        .key_manager()
+        .export_registration_bundle()
         .map_err(ConstructError::from)?;
     Ok(KeyBundle {
         identity_public: bundle.identity_public,

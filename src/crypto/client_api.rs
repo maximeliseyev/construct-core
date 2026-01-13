@@ -126,7 +126,12 @@ where
     ) -> Result<Self, String> {
         let mut key_manager = KeyManager::<P>::new();
         key_manager
-            .initialize_from_keys(identity_secret, signing_secret, prekey_secret, prekey_signature)
+            .initialize_from_keys(
+                identity_secret,
+                signing_secret,
+                prekey_secret,
+                prekey_signature,
+            )
             .map_err(|e| format!("Failed to initialize key manager from keys: {:?}", e))?;
 
         Ok(Self {
@@ -406,17 +411,14 @@ where
         contact_id: &str,
         plaintext: &[u8],
     ) -> Result<M::EncryptedMessage, String> {
-        let session = self
-            .sessions
-            .get_mut(contact_id)
-            .ok_or_else(|| {
-                tracing::error!(
-                    target: "crypto::client",
-                    contact_id = %contact_id,
-                    "No session found for contact"
-                );
-                format!("No session with contact: {}", contact_id)
-            })?;
+        let session = self.sessions.get_mut(contact_id).ok_or_else(|| {
+            tracing::error!(
+                target: "crypto::client",
+                contact_id = %contact_id,
+                "No session found for contact"
+            );
+            format!("No session with contact: {}", contact_id)
+        })?;
 
         tracing::debug!(
             target: "crypto::client",
@@ -486,10 +488,7 @@ where
     pub fn import_session(&mut self, contact_id: &str, messaging_session: M) -> String {
         let session_id = messaging_session.session_id().to_string();
 
-        let session = Session::from_messaging_session(
-            contact_id.to_string(),
-            messaging_session
-        );
+        let session = Session::from_messaging_session(contact_id.to_string(), messaging_session);
 
         self.sessions.insert(contact_id.to_string(), session);
         session_id
@@ -556,10 +555,10 @@ pub type ClassicClient<P> = Client<P, X3DHProtocol<P>, DoubleRatchetSession<P>>;
 
 #[cfg(test)]
 mod tests {
-    use crate::crypto::SuiteID;
     use super::*;
     use crate::crypto::handshake::x3dh::X3DHPublicKeyBundle;
     use crate::crypto::suites::classic::ClassicSuiteProvider;
+    use crate::crypto::SuiteID;
 
     type TestClient = Client<
         ClassicSuiteProvider,

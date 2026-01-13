@@ -105,9 +105,9 @@ pub mod master_key;
 // ============================================================================
 
 #[cfg(feature = "post-quantum")]
-pub mod pq_x3dh;
-#[cfg(feature = "post-quantum")]
 pub mod pq_double_ratchet;
+#[cfg(feature = "post-quantum")]
+pub mod pq_x3dh;
 
 // ============================================================================
 // Re-exports для удобства

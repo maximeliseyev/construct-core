@@ -24,16 +24,19 @@ impl CryptoProvider for ClassicSuiteProvider {
     fn generate_kem_keys() -> Result<(Self::KemPrivateKey, Self::KemPublicKey), CryptoError> {
         let private_key = StaticSecret::random_from_rng(OsRng);
         let public_key = KemPublicKeyDalek::from(&private_key);
-        Ok((private_key.to_bytes().to_vec(), public_key.to_bytes().to_vec()))
+        Ok((
+            private_key.to_bytes().to_vec(),
+            public_key.to_bytes().to_vec(),
+        ))
     }
 
     fn from_private_key_to_public_key(
         private_key: &Self::KemPrivateKey,
     ) -> Result<Self::KemPublicKey, CryptoError> {
         let bytes_slice: &[u8] = private_key.as_ref();
-        let bytes: &[u8; 32] = bytes_slice
-            .try_into()
-            .map_err(|_| CryptoError::InvalidInputError("Invalid KEM private key length".to_string()))?;
+        let bytes: &[u8; 32] = bytes_slice.try_into().map_err(|_| {
+            CryptoError::InvalidInputError("Invalid KEM private key length".to_string())
+        })?;
         let static_secret = StaticSecret::from(*bytes);
         let public_key = KemPublicKeyDalek::from(&static_secret);
         Ok(public_key.to_bytes().to_vec())
@@ -78,19 +81,22 @@ impl CryptoProvider for ClassicSuiteProvider {
         private_key: &Self::SignaturePrivateKey,
     ) -> Result<Self::SignaturePublicKey, CryptoError> {
         let bytes_slice: &[u8] = private_key.as_ref();
-        let bytes: &[u8; 32] = bytes_slice
-            .try_into()
-            .map_err(|_| CryptoError::InvalidInputError("Invalid signing key length".to_string()))?;
+        let bytes: &[u8; 32] = bytes_slice.try_into().map_err(|_| {
+            CryptoError::InvalidInputError("Invalid signing key length".to_string())
+        })?;
         let signing_key = SigningKey::from_bytes(bytes);
         let verifying_key = signing_key.verifying_key();
         Ok(verifying_key.to_bytes().to_vec())
     }
 
-    fn sign(private_key: &Self::SignaturePrivateKey, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    fn sign(
+        private_key: &Self::SignaturePrivateKey,
+        message: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
         let bytes_slice: &[u8] = private_key.as_ref();
-        let bytes: &[u8; 32] = bytes_slice
-            .try_into()
-            .map_err(|_| CryptoError::InvalidInputError("Invalid signing key length".to_string()))?;
+        let bytes: &[u8; 32] = bytes_slice.try_into().map_err(|_| {
+            CryptoError::InvalidInputError("Invalid signing key length".to_string())
+        })?;
         let signing_key = SigningKey::from_bytes(bytes);
         let signature = signing_key.sign(message);
         Ok(signature.to_bytes().to_vec())
@@ -102,9 +108,9 @@ impl CryptoProvider for ClassicSuiteProvider {
         signature: &[u8],
     ) -> Result<(), CryptoError> {
         let vk_slice: &[u8] = public_key.as_ref();
-        let vk_bytes: &[u8; 32] = vk_slice
-            .try_into()
-            .map_err(|_| CryptoError::InvalidInputError("Invalid verifying key length".to_string()))?;
+        let vk_bytes: &[u8; 32] = vk_slice.try_into().map_err(|_| {
+            CryptoError::InvalidInputError("Invalid verifying key length".to_string())
+        })?;
         let verifying_key = VerifyingKey::from_bytes(vk_bytes)
             .map_err(|e| CryptoError::InvalidInputError(format!("Invalid verifying key: {}", e)))?;
 
@@ -118,14 +124,12 @@ impl CryptoProvider for ClassicSuiteProvider {
             .map_err(|e| CryptoError::SignatureVerificationError(e.to_string()))
     }
 
-    fn kem_encapsulate(
-        public_key: &Self::KemPublicKey,
-    ) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+    fn kem_encapsulate(public_key: &Self::KemPublicKey) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
         let ephemeral_secret = EphemeralSecret::random_from_rng(OsRng);
         let pk_slice: &[u8] = public_key.as_ref();
-        let pk_bytes: &[u8; 32] = pk_slice
-            .try_into()
-            .map_err(|_| CryptoError::InvalidInputError("Invalid KEM public key length".to_string()))?;
+        let pk_bytes: &[u8; 32] = pk_slice.try_into().map_err(|_| {
+            CryptoError::InvalidInputError("Invalid KEM public key length".to_string())
+        })?;
         let recipient_public_key = KemPublicKeyDalek::from(*pk_bytes);
 
         // Get ephemeral public key before consuming ephemeral_secret
@@ -145,14 +149,14 @@ impl CryptoProvider for ClassicSuiteProvider {
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, CryptoError> {
         let pk_slice: &[u8] = private_key.as_ref();
-        let bytes: &[u8; 32] = pk_slice
-            .try_into()
-            .map_err(|_| CryptoError::InvalidInputError("Invalid KEM private key length".to_string()))?;
+        let bytes: &[u8; 32] = pk_slice.try_into().map_err(|_| {
+            CryptoError::InvalidInputError("Invalid KEM private key length".to_string())
+        })?;
         let static_secret = StaticSecret::from(*bytes);
 
-        let ct_bytes: &[u8; 32] = ciphertext
-            .try_into()
-            .map_err(|_| CryptoError::InvalidInputError("Invalid KEM ciphertext length".to_string()))?;
+        let ct_bytes: &[u8; 32] = ciphertext.try_into().map_err(|_| {
+            CryptoError::InvalidInputError("Invalid KEM ciphertext length".to_string())
+        })?;
         let ephemeral_public_key = KemPublicKeyDalek::from(*ct_bytes);
 
         let shared_secret = static_secret.diffie_hellman(&ephemeral_public_key);

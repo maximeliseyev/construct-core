@@ -20,11 +20,11 @@ pub struct PQDoubleRatchetSession {
     // Классические цепочки
     classical_root_key: [u8; 32],
     classical_sending_chain: [u8; 32],
-    
+
     // Пост-квантовые цепочки
     pq_root_key: [u8; 32],
     pq_sending_chain: [u8; 32],
-    
+
     // Ключи для следующего обновления
     next_kyber_public: Option<Vec<u8>>,
     next_classical_public: Option<[u8; 32]>,
@@ -38,13 +38,13 @@ impl PQDoubleRatchetSession {
         // 1. Derive message keys from both classical and PQC sending chains.
         // let (classical_msg_key, next_classical) = self.kdf_classical(&self.classical_sending_chain);
         // let (pq_msg_key, next_pq) = self.kdf_pq(&self.pq_sending_chain);
-        
+
         // 2. Combine the keys.
         // let final_key = self.combine_keys(&classical_msg_key, &pq_msg_key);
-        
+
         // 3. Encrypt the plaintext.
         // let ciphertext = chacha20_poly1305_encrypt(&final_key, plaintext);
-        
+
         // 4. Update the sending chains.
         // self.classical_sending_chain = next_classical;
         // self.pq_sending_chain = next_pq;
@@ -52,7 +52,7 @@ impl PQDoubleRatchetSession {
         // The returned struct would contain the ciphertext and new public material.
         PQEncryptedMessage {
             ciphertext: plaintext.to_vec(), // Not actually encrypted
-            classical_dh_public: [0; 32], // Placeholder
+            classical_dh_public: [0; 32],   // Placeholder
             kyber_ciphertext: None,
             message_number: 0,
             is_pq: true,
