@@ -3,8 +3,8 @@
 
 use crate::crypto::suites::classic::ClassicSuiteProvider;
 use crate::state::app::AppState;
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::prelude::*;
 
 // Type alias for convenience
