@@ -24,3 +24,5 @@ bindings/
 
 # Tests
 *.test
+
+.docs-cache
