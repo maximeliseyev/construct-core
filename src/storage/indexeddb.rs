@@ -10,11 +10,15 @@ use wasm_bindgen::JsCast;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::JsFuture;
 #[cfg(target_arch = "wasm32")]
-use web_sys::{IdbDatabase, IdbRequest, IdbTransactionMode};
+use web_sys::{IdbDatabase, IdbRequest};
+
+// Импортируем базовые операции
+#[cfg(target_arch = "wasm32")]
+use super::indexeddb_ops as ops;
 
 pub struct IndexedDbStorage {
     #[cfg(target_arch = "wasm32")]
-    db: Option<IdbDatabase>,
+    pub(super) db: Option<IdbDatabase>,
 }
 
 impl IndexedDbStorage {
@@ -36,9 +40,9 @@ impl IndexedDbStorage {
             .map_err(|e| ConstructError::StorageError(format!("IndexedDB not available: {:?}", e)))?
             .ok_or_else(|| ConstructError::StorageError("IndexedDB not supported".to_string()))?;
 
-        // Открыть или создать БД
+        // Открыть или создать БД (версия 2 для новых object stores)
         let open_request = idb
-            .open_with_u32("construct_messenger", 1)
+            .open_with_u32("construct_messenger", 2)
             .map_err(|e| ConstructError::StorageError(format!("Failed to open DB: {:?}", e)))?;
 
         let onupgradeneeded =
@@ -47,45 +51,62 @@ impl IndexedDbStorage {
                 let request: IdbRequest = target.dyn_into().expect("Target should be IdbRequest");
                 let db: IdbDatabase = request.result().unwrap().dyn_into().unwrap();
 
-                // Создать object stores (версия БД контролирует создание)
-                // Если версия увеличена, создаем все stores заново
-                let params = web_sys::IdbObjectStoreParameters::new();
-                params.set_key_path(&JsValue::from_str("user_id"));
-                let _ = db.create_object_store_with_optional_parameters("private_keys", &params);
+                // Вспомогательная функция для безопасного создания object store
+                // В IndexedDB, если store уже существует, create_object_store выбросит ошибку,
+                // которую мы игнорируем (стандартный подход для миграций)
+                let create_store_safe = |db: &IdbDatabase, name: &str, key_path: &str| -> Option<web_sys::IdbObjectStore> {
+                    // Проверить существование через список имен
+                    if db.object_store_names().contains(name) {
+                        return None;
+                    }
+                    
+                    let mut params = web_sys::IdbObjectStoreParameters::new();
+                    params.set_key_path(&JsValue::from_str(key_path));
+                    db.create_object_store_with_optional_parameters(name, &params).ok()
+                };
 
-                let params = web_sys::IdbObjectStoreParameters::new();
-                params.set_key_path(&JsValue::from_str("session_id"));
-                if let Ok(store) =
-                    db.create_object_store_with_optional_parameters("sessions", &params)
-                {
-                    // Индекс по contact_id
+                // Создать object stores (игнорируем ошибки если уже существуют)
+                // Это безопасно - IndexedDB выбросит ошибку только если store уже существует
+
+                // Secure storage stores
+                if let Some(_store) = create_store_safe(&db, "private_keys", "user_id") {
+                    // Store создан успешно
+                }
+
+                if let Some(store) = create_store_safe(&db, "sessions", "session_id") {
+                    // Создать индекс по contact_id
                     let _ = store.create_index_with_str("contact_id", "contact_id");
                 }
 
-                let params = web_sys::IdbObjectStoreParameters::new();
-                params.set_key_path(&JsValue::from_str("id"));
-                let _ = db.create_object_store_with_optional_parameters("contacts", &params);
+                if let Some(_store) = create_store_safe(&db, "contacts", "id") {
+                    // Store создан
+                }
 
-                let params = web_sys::IdbObjectStoreParameters::new();
-                params.set_key_path(&JsValue::from_str("id"));
-                if let Ok(store) =
-                    db.create_object_store_with_optional_parameters("messages", &params)
-                {
-                    // Индексы для поиска
+                if let Some(store) = create_store_safe(&db, "messages", "id") {
+                    // Создать индексы для поиска
                     let _ = store.create_index_with_str("conversation_id", "conversation_id");
                     let _ = store.create_index_with_str("timestamp", "timestamp");
                 }
 
-                let params = web_sys::IdbObjectStoreParameters::new();
-                params.set_key_path(&JsValue::from_str("user_id"));
-                let _ = db.create_object_store_with_optional_parameters("metadata", &params);
+                if let Some(_store) = create_store_safe(&db, "metadata", "user_id") {
+                    // Store создан
+                }
+
+                // Новые object stores для REST API (добавлены в версии 2)
+                if let Some(_store) = create_store_safe(&db, "auth_tokens", "user_id") {
+                    // Store создан
+                }
+
+                if let Some(_store) = create_store_safe(&db, "conversations", "id") {
+                    // Store создан
+                }
             }) as Box<dyn FnMut(_)>);
 
         open_request.set_onupgradeneeded(Some(onupgradeneeded.as_ref().unchecked_ref()));
         onupgradeneeded.forget();
 
         // Дождаться открытия БД
-        let db_promise = idb_open_request_to_promise(&open_request);
+        let db_promise = ops::idb_open_request_to_promise(&open_request);
         let db_value = JsFuture::from(db_promise).await.map_err(|e| {
             ConstructError::StorageError(format!("Failed to open database: {:?}", e))
         })?;
@@ -107,129 +128,18 @@ impl IndexedDbStorage {
     // === Вспомогательные методы ===
 
     #[cfg(target_arch = "wasm32")]
-    fn get_db(&self) -> Result<&IdbDatabase> {
+    pub(crate) fn get_db(&self) -> Result<&IdbDatabase> {
         self.db
             .as_ref()
             .ok_or_else(|| ConstructError::StorageError("Database not initialized".to_string()))
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    async fn put_value(&self, store_name: &str, value: &JsValue) -> Result<()> {
-        let db = self.get_db()?;
-
-        let transaction = db
-            .transaction_with_str_and_mode(store_name, IdbTransactionMode::Readwrite)
-            .map_err(|e| {
-                ConstructError::StorageError(format!("Failed to create transaction: {:?}", e))
-            })?;
-
-        let store = transaction
-            .object_store(store_name)
-            .map_err(|e| ConstructError::StorageError(format!("Failed to get store: {:?}", e)))?;
-
-        let request = store
-            .put(value)
-            .map_err(|e| ConstructError::StorageError(format!("Failed to put value: {:?}", e)))?;
-
-        let promise = idb_request_to_promise(&request);
-        JsFuture::from(promise)
-            .await
-            .map_err(|e| ConstructError::StorageError(format!("Put operation failed: {:?}", e)))?;
-
-        Ok(())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    async fn get_value(&self, store_name: &str, key: &JsValue) -> Result<Option<JsValue>> {
-        let db = self.get_db()?;
-
-        let transaction = db.transaction_with_str(store_name).map_err(|e| {
-            ConstructError::StorageError(format!("Failed to create transaction: {:?}", e))
-        })?;
-
-        let store = transaction
-            .object_store(store_name)
-            .map_err(|e| ConstructError::StorageError(format!("Failed to get store: {:?}", e)))?;
-
-        let request = store
-            .get(key)
-            .map_err(|e| ConstructError::StorageError(format!("Failed to get value: {:?}", e)))?;
-
-        let promise = idb_request_to_promise(&request);
-        let result = JsFuture::from(promise)
-            .await
-            .map_err(|e| ConstructError::StorageError(format!("Get operation failed: {:?}", e)))?;
-
-        if result.is_null() || result.is_undefined() {
-            Ok(None)
-        } else {
-            Ok(Some(result))
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    async fn get_all_values(&self, store_name: &str) -> Result<Vec<JsValue>> {
-        let db = self.get_db()?;
-
-        let transaction = db.transaction_with_str(store_name).map_err(|e| {
-            ConstructError::StorageError(format!("Failed to create transaction: {:?}", e))
-        })?;
-
-        let store = transaction
-            .object_store(store_name)
-            .map_err(|e| ConstructError::StorageError(format!("Failed to get store: {:?}", e)))?;
-
-        let request = store
-            .get_all()
-            .map_err(|e| ConstructError::StorageError(format!("Failed to get all: {:?}", e)))?;
-
-        let promise = idb_request_to_promise(&request);
-        let result = JsFuture::from(promise).await.map_err(|e| {
-            ConstructError::StorageError(format!("GetAll operation failed: {:?}", e))
-        })?;
-
-        let array: js_sys::Array = result
-            .dyn_into()
-            .map_err(|_| ConstructError::StorageError("Invalid array result".to_string()))?;
-
-        Ok(array.iter().collect())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    async fn delete_value(&self, store_name: &str, key: &JsValue) -> Result<()> {
-        let db = self.get_db()?;
-
-        let transaction = db
-            .transaction_with_str_and_mode(store_name, IdbTransactionMode::Readwrite)
-            .map_err(|e| {
-                ConstructError::StorageError(format!("Failed to create transaction: {:?}", e))
-            })?;
-
-        let store = transaction
-            .object_store(store_name)
-            .map_err(|e| ConstructError::StorageError(format!("Failed to get store: {:?}", e)))?;
-
-        let request = store
-            .delete(key)
-            .map_err(|e| ConstructError::StorageError(format!("Failed to delete: {:?}", e)))?;
-
-        let promise = idb_request_to_promise(&request);
-        JsFuture::from(promise).await.map_err(|e| {
-            ConstructError::StorageError(format!("Delete operation failed: {:?}", e))
-        })?;
-
-        Ok(())
     }
 
     // === Приватные ключи ===
 
     #[cfg(target_arch = "wasm32")]
     pub async fn save_private_keys(&self, keys: StoredPrivateKeys) -> Result<()> {
-        let value = serde_wasm_bindgen::to_value(&keys).map_err(|e| {
-            ConstructError::SerializationError(format!("Failed to serialize keys: {:?}", e))
-        })?;
-
-        self.put_value("private_keys", &value).await
+        let db = self.get_db()?;
+        ops::put_typed(db, "private_keys", &keys).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -241,21 +151,8 @@ impl IndexedDbStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn load_private_keys(&self, user_id: &str) -> Result<Option<StoredPrivateKeys>> {
-        let key = JsValue::from_str(user_id);
-        let value = self.get_value("private_keys", &key).await?;
-
-        match value {
-            Some(v) => {
-                let keys: StoredPrivateKeys = serde_wasm_bindgen::from_value(v).map_err(|e| {
-                    ConstructError::SerializationError(format!(
-                        "Failed to deserialize keys: {:?}",
-                        e
-                    ))
-                })?;
-                Ok(Some(keys))
-            }
-            None => Ok(None),
-        }
+        let db = self.get_db()?;
+        ops::get_typed(db, "private_keys", user_id).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -267,11 +164,8 @@ impl IndexedDbStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn save_session(&self, session: StoredSession) -> Result<()> {
-        let value = serde_wasm_bindgen::to_value(&session).map_err(|e| {
-            ConstructError::SerializationError(format!("Failed to serialize session: {:?}", e))
-        })?;
-
-        self.put_value("sessions", &value).await
+        let db = self.get_db()?;
+        ops::put_typed(db, "sessions", &session).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -283,21 +177,8 @@ impl IndexedDbStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn load_session(&self, session_id: &str) -> Result<Option<StoredSession>> {
-        let key = JsValue::from_str(session_id);
-        let value = self.get_value("sessions", &key).await?;
-
-        match value {
-            Some(v) => {
-                let session: StoredSession = serde_wasm_bindgen::from_value(v).map_err(|e| {
-                    ConstructError::SerializationError(format!(
-                        "Failed to deserialize session: {:?}",
-                        e
-                    ))
-                })?;
-                Ok(Some(session))
-            }
-            None => Ok(None),
-        }
+        let db = self.get_db()?;
+        ops::get_typed(db, "sessions", session_id).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -307,20 +188,8 @@ impl IndexedDbStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn load_all_sessions(&self) -> Result<Vec<StoredSession>> {
-        let values = self.get_all_values("sessions").await?;
-
-        let mut sessions = Vec::new();
-        for value in values {
-            let session: StoredSession = serde_wasm_bindgen::from_value(value).map_err(|e| {
-                ConstructError::SerializationError(format!(
-                    "Failed to deserialize session: {:?}",
-                    e
-                ))
-            })?;
-            sessions.push(session);
-        }
-
-        Ok(sessions)
+        let db = self.get_db()?;
+        ops::get_all_typed(db, "sessions").await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -330,8 +199,8 @@ impl IndexedDbStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn delete_session(&self, session_id: &str) -> Result<()> {
-        let key = JsValue::from_str(session_id);
-        self.delete_value("sessions", &key).await
+        let db = self.get_db()?;
+        ops::delete_by_key(db, "sessions", session_id).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -343,11 +212,8 @@ impl IndexedDbStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn save_contact(&self, contact: StoredContact) -> Result<()> {
-        let value = serde_wasm_bindgen::to_value(&contact).map_err(|e| {
-            ConstructError::SerializationError(format!("Failed to serialize contact: {:?}", e))
-        })?;
-
-        self.put_value("contacts", &value).await
+        let db = self.get_db()?;
+        ops::put_typed(db, "contacts", &contact).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -359,20 +225,8 @@ impl IndexedDbStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn load_all_contacts(&self) -> Result<Vec<StoredContact>> {
-        let values = self.get_all_values("contacts").await?;
-
-        let mut contacts = Vec::new();
-        for value in values {
-            let contact: StoredContact = serde_wasm_bindgen::from_value(value).map_err(|e| {
-                ConstructError::SerializationError(format!(
-                    "Failed to deserialize contact: {:?}",
-                    e
-                ))
-            })?;
-            contacts.push(contact);
-        }
-
-        Ok(contacts)
+        let db = self.get_db()?;
+        ops::get_all_typed(db, "contacts").await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -380,15 +234,34 @@ impl IndexedDbStorage {
         Ok(Vec::new())
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub async fn load_contact(&self, contact_id: &str) -> Result<Option<StoredContact>> {
+        let db = self.get_db()?;
+        ops::get_typed(db, "contacts", contact_id).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn load_contact(&self, _contact_id: &str) -> Result<Option<StoredContact>> {
+        Ok(None)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn delete_contact(&self, contact_id: &str) -> Result<()> {
+        let db = self.get_db()?;
+        ops::delete_by_key(db, "contacts", contact_id).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn delete_contact(&self, _contact_id: &str) -> Result<()> {
+        Ok(())
+    }
+
     // === Сообщения ===
 
     #[cfg(target_arch = "wasm32")]
     pub async fn save_message(&self, msg: StoredMessage) -> Result<()> {
-        let value = serde_wasm_bindgen::to_value(&msg).map_err(|e| {
-            ConstructError::SerializationError(format!("Failed to serialize message: {:?}", e))
-        })?;
-
-        self.put_value("messages", &value).await
+        let db = self.get_db()?;
+        ops::put_typed(db, "messages", &msg).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -407,43 +280,8 @@ impl IndexedDbStorage {
     ) -> Result<Vec<StoredMessage>> {
         let db = self.get_db()?;
 
-        let transaction = db.transaction_with_str("messages").map_err(|e| {
-            ConstructError::StorageError(format!("Failed to create transaction: {:?}", e))
-        })?;
-
-        let store = transaction
-            .object_store("messages")
-            .map_err(|e| ConstructError::StorageError(format!("Failed to get store: {:?}", e)))?;
-
-        // Получить индекс по conversation_id
-        let index = store
-            .index("conversation_id")
-            .map_err(|e| ConstructError::StorageError(format!("Failed to get index: {:?}", e)))?;
-
-        let key = JsValue::from_str(conversation_id);
-        let request = index
-            .get_all_with_key(&key)
-            .map_err(|e| ConstructError::StorageError(format!("Failed to query index: {:?}", e)))?;
-
-        let promise = idb_request_to_promise(&request);
-        let result = JsFuture::from(promise).await.map_err(|e| {
-            ConstructError::StorageError(format!("Query operation failed: {:?}", e))
-        })?;
-
-        let array: js_sys::Array = result
-            .dyn_into()
-            .map_err(|_| ConstructError::StorageError("Invalid array result".to_string()))?;
-
-        let mut messages: Vec<StoredMessage> = array
-            .iter()
-            .map(|v| serde_wasm_bindgen::from_value(v))
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(|e| {
-                ConstructError::SerializationError(format!(
-                    "Failed to deserialize messages: {:?}",
-                    e
-                ))
-            })?;
+        let mut messages: Vec<StoredMessage> =
+            ops::get_all_typed_by_index(db, "messages", "conversation_id", conversation_id).await?;
 
         // Сортировать по timestamp
         messages.sort_by_key(|m| m.timestamp);
@@ -464,15 +302,34 @@ impl IndexedDbStorage {
         Ok(Vec::new())
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub async fn load_message(&self, message_id: &str) -> Result<Option<StoredMessage>> {
+        let db = self.get_db()?;
+        ops::get_typed(db, "messages", message_id).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn load_message(&self, _message_id: &str) -> Result<Option<StoredMessage>> {
+        Ok(None)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn delete_message(&self, message_id: &str) -> Result<()> {
+        let db = self.get_db()?;
+        ops::delete_by_key(db, "messages", message_id).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn delete_message(&self, _message_id: &str) -> Result<()> {
+        Ok(())
+    }
+
     // === Метаданные ===
 
     #[cfg(target_arch = "wasm32")]
     pub async fn save_metadata(&self, metadata: StoredAppMetadata) -> Result<()> {
-        let value = serde_wasm_bindgen::to_value(&metadata).map_err(|e| {
-            ConstructError::SerializationError(format!("Failed to serialize metadata: {:?}", e))
-        })?;
-
-        self.put_value("metadata", &value).await
+        let db = self.get_db()?;
+        ops::put_typed(db, "metadata", &metadata).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -484,22 +341,8 @@ impl IndexedDbStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn load_metadata(&self, user_id: &str) -> Result<Option<StoredAppMetadata>> {
-        let key = JsValue::from_str(user_id);
-        let value = self.get_value("metadata", &key).await?;
-
-        match value {
-            Some(v) => {
-                let metadata: StoredAppMetadata =
-                    serde_wasm_bindgen::from_value(v).map_err(|e| {
-                        ConstructError::SerializationError(format!(
-                            "Failed to deserialize metadata: {:?}",
-                            e
-                        ))
-                    })?;
-                Ok(Some(metadata))
-            }
-            None => Ok(None),
-        }
+        let db = self.get_db()?;
+        ops::get_typed(db, "metadata", user_id).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -508,19 +351,20 @@ impl IndexedDbStorage {
     }
 
     /// Очистить все данные (WASM версия)
+    ///
+    /// Этот метод удаляет все данные из всех object stores.
+    /// Используется при logout или для полного сброса данных.
     #[cfg(target_arch = "wasm32")]
     pub async fn clear_all(&mut self) -> Result<()> {
-        // IndexedDB doesn't have a simple "clear all" method
-        // We would need to delete all object stores and recreate them
-        // For now, this is a placeholder - proper implementation would require
-        // closing the database, deleting it, and recreating
-        // This is a complex operation that's typically not needed
-        Ok(())
+        // Используем реализацию из DataStorage trait
+        // которая очищает все данные включая secure storage
+        use super::traits::DataStorage;
+        DataStorage::clear_all(self).await
     }
 
     /// Очистить все данные (non-WASM заглушка)
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn clear_all(&mut self) -> Result<()> {
+    pub async fn clear_all(&mut self) -> Result<()> {
         Ok(())
     }
 }
@@ -529,42 +373,6 @@ impl Default for IndexedDbStorage {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn idb_request_to_promise(request: &IdbRequest) -> js_sys::Promise {
-    js_sys::Promise::new(&mut |resolve, reject| {
-        let onsuccess = Closure::wrap(Box::new(move |event: web_sys::Event| {
-            let target = event.target().expect("Event target is missing");
-            let req = target.dyn_into::<web_sys::IdbRequest>().unwrap();
-            let result = req.result().unwrap();
-            resolve.call1(&JsValue::NULL, &result).unwrap();
-        }) as Box<dyn FnMut(_)>);
-
-        let onerror = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-            // Stop the event from propagating.
-            _event.prevent_default();
-            // Note: web-sys doesn't expose IdbRequest.error() directly
-            // We just reject with a generic error message
-            reject
-                .call1(
-                    &JsValue::NULL,
-                    &JsValue::from_str("IndexedDB operation failed"),
-                )
-                .unwrap();
-        }) as Box<dyn FnMut(_)>);
-
-        request.set_onsuccess(Some(onsuccess.as_ref().unchecked_ref()));
-        request.set_onerror(Some(onerror.as_ref().unchecked_ref()));
-
-        onsuccess.forget();
-        onerror.forget();
-    })
-}
-
-#[cfg(target_arch = "wasm32")]
-fn idb_open_request_to_promise(request: &web_sys::IdbOpenDbRequest) -> js_sys::Promise {
-    idb_request_to_promise(request)
 }
 
 // Для совместимости с существующим кодом

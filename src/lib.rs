@@ -23,6 +23,7 @@ pub use platforms::wasm;
 
 // Core modules (platform-independent)
 pub mod api;
+pub mod auth;
 pub mod config;
 pub mod crypto;
 pub mod error;

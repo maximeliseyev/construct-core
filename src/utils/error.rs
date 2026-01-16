@@ -40,6 +40,14 @@ pub enum ConstructError {
     /// Внутренняя ошибка
     #[error("Internal error: {0}")]
     InternalError(String),
+
+    /// Функция не реализована
+    #[error("Not implemented")]
+    NotImplemented,
+
+    /// Ошибка аутентификации
+    #[error("Unauthenticated: {0}")]
+    Unauthenticated(String),
 }
 
 pub type Result<T> = std::result::Result<T, ConstructError>;

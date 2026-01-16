@@ -73,7 +73,37 @@ uniffi = { version = "0.30", features = ["build"], optional = true }
 # WASM bindings (optional)
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["WebSocket", "Window", "console", "IdbDatabase", "IdbOpenDbRequest", "IdbRequest", "IdbTransaction", "IdbTransactionMode", "CloseEvent", "ErrorEvent", "MessageEvent", "BinaryType", "IdbObjectStoreParameters", "IdbVersionChangeEvent", "Event", "IdbObjectStore", "IdbIndex", "IdbFactory"] }
+web-sys = { version = "0.3", optional = true, features = [
+    # REST API / Fetch
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "RequestCredentials",
+    "Response",
+    "Headers",
+    "AbortSignal",
+    # WebSocket (legacy, will be removed)
+    "WebSocket",
+    "CloseEvent",
+    "ErrorEvent",
+    "MessageEvent",
+    "BinaryType",
+    # IndexedDB
+    "IdbDatabase",
+    "IdbOpenDbRequest",
+    "IdbRequest",
+    "IdbTransaction",
+    "IdbTransactionMode",
+    "IdbObjectStoreParameters",
+    "IdbVersionChangeEvent",
+    "IdbObjectStore",
+    "IdbIndex",
+    "IdbFactory",
+    # Common
+    "Window",
+    "console",
+    "Event",
+] }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 js-sys = { version = "0.3", optional = true }

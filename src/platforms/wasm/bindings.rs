@@ -3,26 +3,31 @@
 
 use crate::crypto::suites::classic::ClassicSuiteProvider;
 use crate::state::app::AppState;
+use crate::storage::indexeddb::IndexedDbStorage;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::prelude::*;
 
 // Type alias for convenience
-type AppStateType = AppState<ClassicSuiteProvider>;
+// AppState now uses IndexedDbStorage for WASM
+type AppStateType = AppState<ClassicSuiteProvider, IndexedDbStorage>;
 type AppStateArc = Arc<Mutex<AppStateType>>;
 type AppStateMap = HashMap<String, AppStateArc>;
 
 // Global storage for AppState instances
-// Key: state_id (String), Value: Arc<Mutex<AppState<ClassicSuiteProvider>>>
+// Key: state_id (String), Value: Arc<Mutex<AppState<ClassicSuiteProvider, IndexedDbStorage>>>
 thread_local! {
     static APP_STATES: std::cell::RefCell<AppStateMap> =
         std::cell::RefCell::new(AppStateMap::new());
 }
 
 /// Create a new AppState instance and return its ID
+///
+/// # Parameters
+/// - `server_url`: URL of the REST API server (e.g., "https://api.construct.net")
 #[wasm_bindgen]
-pub async fn create_app_state(_db_name: String) -> Result<String, JsValue> {
-    let state: AppStateType = AppState::<ClassicSuiteProvider>::new()
+pub async fn create_app_state(server_url: String) -> Result<String, JsValue> {
+    let state = AppStateType::new(server_url)
         .await
         .map_err(|e| JsValue::from_str(&format!("Failed to create app state: {}", e)))?;
 
@@ -54,9 +59,51 @@ fn get_app_state(state_id: &str) -> Result<AppStateArc, JsValue> {
     })
 }
 
-/// Initialize a new user (create keys, don't save yet)
+/// Register a new user via REST API
+///
+/// # Parameters
+/// - `state_id`: AppState instance ID
+/// - `username`: Username for the new account
+/// - `password`: Password (will be validated and used for key derivation)
+///
+/// # Returns
+/// - `Ok(user_id)`: Registration successful, returns the assigned user ID
+/// - `Err(JsValue)`: Registration failed with error message
 #[wasm_bindgen]
-pub async fn app_state_initialize_user(
+pub async fn app_state_register(
+    state_id: String,
+    username: String,
+    password: String,
+) -> Result<String, JsValue> {
+    let state_arc = get_app_state(&state_id)?;
+    let mut state = state_arc
+        .lock()
+        .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
+
+    state
+        .register(username, password)
+        .await
+        .map_err(|e| JsValue::from_str(&format!("Failed to register: {}", e)))?;
+
+    // Return the user_id after successful registration
+    state
+        .get_user_id()
+        .ok_or_else(|| JsValue::from_str("Registration succeeded but user_id is missing"))
+        .map(|s| s.to_string())
+}
+
+/// Login an existing user via REST API
+///
+/// # Parameters
+/// - `state_id`: AppState instance ID
+/// - `username`: Username
+/// - `password`: Password
+///
+/// # Returns
+/// - `Ok(())`: Login successful
+/// - `Err(JsValue)`: Login failed with error message
+#[wasm_bindgen]
+pub async fn app_state_login(
     state_id: String,
     username: String,
     password: String,
@@ -67,29 +114,32 @@ pub async fn app_state_initialize_user(
         .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
 
     state
-        .initialize_user(username, password)
+        .login(username, password)
         .await
-        .map_err(|e| JsValue::from_str(&format!("Failed to initialize user: {}", e)))?;
+        .map_err(|e| JsValue::from_str(&format!("Failed to login: {}", e)))?;
 
     Ok(())
 }
 
-/// Load an existing user
+/// Logout the current user
+///
+/// # Parameters
+/// - `state_id`: AppState instance ID
+///
+/// # Returns
+/// - `Ok(())`: Logout successful
+/// - `Err(JsValue)`: Logout failed with error message
 #[wasm_bindgen]
-pub async fn app_state_load_user(
-    state_id: String,
-    user_id: String,
-    password: String,
-) -> Result<(), JsValue> {
+pub async fn app_state_logout(state_id: String) -> Result<(), JsValue> {
     let state_arc = get_app_state(&state_id)?;
     let mut state = state_arc
         .lock()
         .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
 
     state
-        .load_user(user_id, password)
+        .logout()
         .await
-        .map_err(|e| JsValue::from_str(&format!("Failed to load user: {}", e)))?;
+        .map_err(|e| JsValue::from_str(&format!("Failed to logout: {}", e)))?;
 
     Ok(())
 }
@@ -143,12 +193,20 @@ pub fn app_state_get_contacts(state_id: String) -> Result<JsValue, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize contacts: {}", e)))
 }
 
-/// Send a message
+/// Send a message via REST API
+///
+/// # Parameters
+/// - `state_id`: AppState instance ID
+/// - `to_contact_id`: Recipient's user ID
+/// - `text`: Plain text message content
+///
+/// # Returns
+/// - `Ok(message_id)`: Message sent successfully, returns message ID
+/// - `Err(JsValue)`: Failed to send message
 #[wasm_bindgen]
 pub async fn app_state_send_message(
     state_id: String,
     to_contact_id: String,
-    session_id: String,
     text: String,
 ) -> Result<String, JsValue> {
     let state_arc = get_app_state(&state_id)?;
@@ -157,120 +215,72 @@ pub async fn app_state_send_message(
         .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
 
     let message_id = state
-        .send_message(&to_contact_id, &session_id, &text)
+        .send_message(&to_contact_id, &text)
         .await
         .map_err(|e| JsValue::from_str(&format!("Failed to send message: {}", e)))?;
 
     Ok(message_id)
 }
 
-/// Load conversation messages
+/// Start long polling for incoming messages
+///
+/// # Parameters
+/// - `state_id`: AppState instance ID
+///
+/// # Returns
+/// - `Ok(())`: Long polling started successfully
+/// - `Err(JsValue)`: Failed to start long polling
 #[wasm_bindgen]
-pub async fn app_state_load_conversation(
-    state_id: String,
-    contact_id: String,
-) -> Result<JsValue, JsValue> {
+pub async fn app_state_start_polling(state_id: String) -> Result<(), JsValue> {
     let state_arc = get_app_state(&state_id)?;
     let mut state = state_arc
         .lock()
         .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
 
-    let messages = state
-        .load_conversation(&contact_id)
+    state
+        .start_polling()
         .await
-        .map_err(|e| JsValue::from_str(&format!("Failed to load conversation: {}", e)))?;
+        .map_err(|e| JsValue::from_str(&format!("Failed to start polling: {}", e)))?;
 
-    serde_wasm_bindgen::to_value(&messages)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize messages: {}", e)))
+    Ok(())
 }
 
-/// Get connection state
+/// Stop long polling for incoming messages
+///
+/// # Parameters
+/// - `state_id`: AppState instance ID
 #[wasm_bindgen]
-pub fn app_state_connection_state(state_id: String) -> String {
+pub fn app_state_stop_polling(state_id: String) -> Result<(), JsValue> {
+    let state_arc = get_app_state(&state_id)?;
+    let mut state = state_arc
+        .lock()
+        .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
+
+    state.stop_polling();
+
+    Ok(())
+}
+
+/// Check if long polling is active
+///
+/// # Parameters
+/// - `state_id`: AppState instance ID
+///
+/// # Returns
+/// - `true` if polling is active, `false` otherwise
+#[wasm_bindgen]
+pub fn app_state_is_polling(state_id: String) -> bool {
     let state_arc = match get_app_state(&state_id) {
         Ok(arc) => arc,
-        Err(_) => return "error".to_string(),
+        Err(_) => return false,
     };
 
-    let state: std::sync::MutexGuard<'_, AppStateType> = match state_arc.lock() {
+    let state = match state_arc.lock() {
         Ok(s) => s,
-        Err(_) => return "error".to_string(),
+        Err(_) => return false,
     };
 
-    match state.connection_state() {
-        crate::state::app::ConnectionState::Disconnected => "disconnected",
-        crate::state::app::ConnectionState::Connecting => "connecting",
-        crate::state::app::ConnectionState::Connected => "connected",
-        crate::state::app::ConnectionState::Reconnecting => "reconnecting",
-        crate::state::app::ConnectionState::Error => "error",
-    }
-    .to_string()
-}
-
-/// Connect to server
-#[wasm_bindgen]
-pub fn app_state_connect(state_id: String, server_url: String) -> Result<(), JsValue> {
-    let state_arc = get_app_state(&state_id)?;
-    let mut state = state_arc
-        .lock()
-        .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
-
-    state
-        .connect(&server_url)
-        .map_err(|e| JsValue::from_str(&format!("Failed to connect: {}", e)))?;
-
-    Ok(())
-}
-
-/// Disconnect from server
-#[wasm_bindgen]
-pub fn app_state_disconnect(state_id: String) -> Result<(), JsValue> {
-    let state_arc = get_app_state(&state_id)?;
-    let mut state = state_arc
-        .lock()
-        .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
-
-    state
-        .disconnect()
-        .map_err(|e| JsValue::from_str(&format!("Failed to disconnect: {}", e)))?;
-
-    Ok(())
-}
-
-/// Register on server
-#[wasm_bindgen]
-pub fn app_state_register_on_server(state_id: String, password: String) -> Result<(), JsValue> {
-    let state_arc = get_app_state(&state_id)?;
-    let state = state_arc
-        .lock()
-        .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
-
-    state
-        .register_on_server(password)
-        .map_err(|e| JsValue::from_str(&format!("Failed to register: {}", e)))?;
-
-    Ok(())
-}
-
-/// Finalize registration
-#[wasm_bindgen]
-pub async fn app_state_finalize_registration(
-    state_id: String,
-    user_id: String,
-    session_token: String,
-    password: String,
-) -> Result<(), JsValue> {
-    let state_arc = get_app_state(&state_id)?;
-    let mut state = state_arc
-        .lock()
-        .map_err(|e| JsValue::from_str(&format!("Failed to lock state: {}", e)))?;
-
-    state
-        .finalize_registration(user_id, session_token, password)
-        .await
-        .map_err(|e| JsValue::from_str(&format!("Failed to finalize registration: {}", e)))?;
-
-    Ok(())
+    state.is_polling_active()
 }
 
 // Console logging module for WASM
