@@ -44,10 +44,8 @@ pub trait SecureStorage {
     /// # Security
     /// - iOS: Keychain с `.afterFirstUnlock` accessibility
     /// - Web: IndexedDB (browser sandbox)
-    fn save_auth_tokens(
-        &self,
-        tokens: &AuthTokens,
-    ) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn save_auth_tokens(&self, tokens: &AuthTokens)
+        -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Загрузить токены аутентификации
     fn load_auth_tokens(&self) -> impl Future<Output = Result<Option<AuthTokens>>> + MaybeSend;
@@ -66,7 +64,9 @@ pub trait SecureStorage {
     ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Загрузить приватные ключи
-    fn load_private_keys(&self) -> impl Future<Output = Result<Option<StoredPrivateKeys>>> + MaybeSend;
+    fn load_private_keys(
+        &self,
+    ) -> impl Future<Output = Result<Option<StoredPrivateKeys>>> + MaybeSend;
 
     /// Удалить приватные ключи
     fn clear_private_keys(&self) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -111,7 +111,9 @@ pub trait SecureStorage {
     ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Загрузить метаданные приложения
-    fn load_app_metadata(&self) -> impl Future<Output = Result<Option<StoredAppMetadata>>> + MaybeSend;
+    fn load_app_metadata(
+        &self,
+    ) -> impl Future<Output = Result<Option<StoredAppMetadata>>> + MaybeSend;
 }
 
 // ============================================================================
@@ -130,10 +132,8 @@ pub trait DataStorage {
     // === Messages ===
 
     /// Сохранить сообщение
-    fn save_message(
-        &self,
-        message: &StoredMessage,
-    ) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn save_message(&self, message: &StoredMessage)
+        -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Обновить статус сообщения
     fn update_message_status(
@@ -156,8 +156,10 @@ pub trait DataStorage {
     ) -> impl Future<Output = Result<Vec<StoredMessage>>> + MaybeSend;
 
     /// Загрузить сообщение по ID
-    fn load_message(&self, message_id: &str)
-        -> impl Future<Output = Result<Option<StoredMessage>>> + MaybeSend;
+    fn load_message(
+        &self,
+        message_id: &str,
+    ) -> impl Future<Output = Result<Option<StoredMessage>>> + MaybeSend;
 
     /// Удалить сообщение
     fn delete_message(&self, message_id: &str) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -169,15 +171,16 @@ pub trait DataStorage {
     ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Получить количество сообщений в беседе
-    fn count_messages(&self, conversation_id: &str) -> impl Future<Output = Result<usize>> + MaybeSend;
+    fn count_messages(
+        &self,
+        conversation_id: &str,
+    ) -> impl Future<Output = Result<usize>> + MaybeSend;
 
     // === Contacts ===
 
     /// Сохранить контакт
-    fn save_contact(
-        &self,
-        contact: &StoredContact,
-    ) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn save_contact(&self, contact: &StoredContact)
+        -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Загрузить контакт по ID
     fn load_contact(
@@ -223,7 +226,10 @@ pub trait DataStorage {
     ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     /// Удалить беседу
-    fn delete_conversation(&self, conversation_id: &str) -> impl Future<Output = Result<()>> + MaybeSend;
+    fn delete_conversation(
+        &self,
+        conversation_id: &str,
+    ) -> impl Future<Output = Result<()>> + MaybeSend;
 
     // === Maintenance ===
 
@@ -339,17 +345,11 @@ mod tests {
 
     #[test]
     fn test_session_storage_key() {
-        assert_eq!(
-            session_storage_key("user123"),
-            "session_user123"
-        );
+        assert_eq!(session_storage_key("user123"), "session_user123");
     }
 
     #[test]
     fn test_conversation_id() {
-        assert_eq!(
-            conversation_id_from_contact("contact456"),
-            "contact456"
-        );
+        assert_eq!(conversation_id_from_contact("contact456"), "contact456");
     }
 }

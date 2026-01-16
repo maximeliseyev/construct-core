@@ -54,15 +54,16 @@ impl IndexedDbStorage {
                 // Вспомогательная функция для безопасного создания object store
                 // В IndexedDB, если store уже существует, create_object_store выбросит ошибку,
                 // которую мы игнорируем (стандартный подход для миграций)
-                let create_store_safe = |db: &IdbDatabase, name: &str, key_path: &str| -> Option<web_sys::IdbObjectStore> {
-                    // Проверить существование через список имен
-                    if db.object_store_names().contains(name) {
-                        return None;
-                    }
-                    
+                let create_store_safe = |db: &IdbDatabase,
+                                         name: &str,
+                                         key_path: &str|
+                 -> Option<web_sys::IdbObjectStore> {
+                    // Попытка создать store - если уже существует, вернет None
+                    // IndexedDB автоматически обработает это через onupgradeneeded
                     let mut params = web_sys::IdbObjectStoreParameters::new();
                     params.set_key_path(&JsValue::from_str(key_path));
-                    db.create_object_store_with_optional_parameters(name, &params).ok()
+                    db.create_object_store_with_optional_parameters(name, &params)
+                        .ok()
                 };
 
                 // Создать object stores (игнорируем ошибки если уже существуют)

@@ -51,10 +51,10 @@ pub struct CsrfTokenResponse {
 /// Подпись запроса (для request signing)
 #[derive(Debug, Clone, Serialize)]
 pub struct RequestSignature {
-    pub signature: String,  // Base64-encoded Ed25519 signature
+    pub signature: String, // Base64-encoded Ed25519 signature
     #[serde(rename = "publicKey")]
     pub public_key: String, // Base64-encoded Ed25519 public key
-    pub timestamp: i64,     // Unix epoch seconds
+    pub timestamp: i64,    // Unix epoch seconds
 }
 
 /// Опции для HTTP запроса
@@ -208,10 +208,9 @@ impl RestClient {
 
         // Set headers
         for (key, value) in headers {
-            request
-                .headers()
-                .set(&key, &value)
-                .map_err(|e| ConstructError::NetworkError(format!("Failed to set header: {:?}", e)))?;
+            request.headers().set(&key, &value).map_err(|e| {
+                ConstructError::NetworkError(format!("Failed to set header: {:?}", e))
+            })?;
         }
 
         self.fetch_json(request).await
@@ -235,10 +234,9 @@ impl RestClient {
 
         // Set headers
         for (key, value) in headers {
-            request
-                .headers()
-                .set(&key, &value)
-                .map_err(|e| ConstructError::NetworkError(format!("Failed to set header: {:?}", e)))?;
+            request.headers().set(&key, &value).map_err(|e| {
+                ConstructError::NetworkError(format!("Failed to set header: {:?}", e))
+            })?;
         }
 
         self.fetch_json(request).await
@@ -267,7 +265,9 @@ impl RestClient {
             let text_value = JsFuture::from(text_promise).await.map_err(|e| {
                 ConstructError::NetworkError(format!("Failed to read error text: {:?}", e))
             })?;
-            let error_text = text_value.as_string().unwrap_or_else(|| "Unknown error".to_string());
+            let error_text = text_value
+                .as_string()
+                .unwrap_or_else(|| "Unknown error".to_string());
 
             return Err(ConstructError::NetworkError(format!(
                 "HTTP {} - {}",
@@ -276,9 +276,9 @@ impl RestClient {
         }
 
         // Parse JSON response
-        let json_promise = response.json().map_err(|e| {
-            ConstructError::NetworkError(format!("Failed to parse JSON: {:?}", e))
-        })?;
+        let json_promise = response
+            .json()
+            .map_err(|e| ConstructError::NetworkError(format!("Failed to parse JSON: {:?}", e)))?;
         let json_value = JsFuture::from(json_promise)
             .await
             .map_err(|e| ConstructError::NetworkError(format!("Failed to read JSON: {:?}", e)))?;

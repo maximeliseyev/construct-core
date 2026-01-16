@@ -162,7 +162,6 @@ impl<P: CryptoProvider> AppState<P, IndexedDbStorage> {
             _phantom: PhantomData,
         })
     }
-
 }
 
 // ============================================================================
@@ -359,8 +358,8 @@ impl<P: CryptoProvider, S: SecureStorage + DataStorage> AppState<P, S> {
     /// Запустить long polling для получения сообщений
     pub async fn start_polling(&mut self) -> Result<()> {
         use crate::protocol::long_polling::{LongPollingManagerBuilder, MessageHandler};
-        use std::pin::Pin;
         use std::future::Future;
+        use std::pin::Pin;
 
         // Проверить что не запущен уже
         if self.polling_active.load(Ordering::SeqCst) {
@@ -405,7 +404,8 @@ impl<P: CryptoProvider, S: SecureStorage + DataStorage> AppState<P, S> {
     }
 
     /// Остановить long polling
-    fn stop_polling(&mut self) {
+    /// Остановить long polling
+    pub fn stop_polling(&mut self) {
         if let Some(ref manager) = self.long_polling_manager {
             manager.stop();
         }
@@ -549,7 +549,6 @@ impl<P: CryptoProvider> AppState<P, MemoryStorage> {
             _phantom: PhantomData,
         })
     }
-
 }
 
 #[cfg(test)]

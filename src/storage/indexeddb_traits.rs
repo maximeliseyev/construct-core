@@ -4,8 +4,8 @@
 // для существующего IndexedDbStorage.
 
 use super::indexeddb::IndexedDbStorage;
-use super::traits::{AuthTokens, DataStorage, SecureStorage};
 use super::models::*;
+use super::traits::{AuthTokens, DataStorage, SecureStorage};
 use crate::utils::error::{ConstructError, Result};
 
 #[cfg(target_arch = "wasm32")]
@@ -53,17 +53,20 @@ impl SecureStorage for IndexedDbStorage {
             // Get all tokens and return the first one (single user scenario)
             // В будущем можно оптимизировать если будет известен user_id
             let all_tokens: Vec<AuthTokens> = ops::get_all_typed(db, "auth_tokens").await?;
-            
+
             // Для single-user приложения должен быть только один набор токенов
             if all_tokens.len() > 1 {
                 // Логируем предупреждение если найдено несколько токенов (не должно быть)
                 #[cfg(target_arch = "wasm32")]
-                web_sys::console::warn_1(&format!(
-                    "Found {} auth token sets, expected only 1 (single-user scenario)",
-                    all_tokens.len()
-                ).into());
+                web_sys::console::warn_1(
+                    &format!(
+                        "Found {} auth token sets, expected only 1 (single-user scenario)",
+                        all_tokens.len()
+                    )
+                    .into(),
+                );
             }
-            
+
             Ok(all_tokens.into_iter().next())
         }
 
@@ -616,7 +619,8 @@ impl DataStorage for IndexedDbStorage {
                 ConstructError::StorageError("Database not initialized".to_string())
             })?;
 
-            let mut conversations: Vec<Conversation> = ops::get_all_typed(db, "conversations").await?;
+            let mut conversations: Vec<Conversation> =
+                ops::get_all_typed(db, "conversations").await?;
 
             // Sort by last message timestamp (most recent first)
             conversations.sort_by(|a, b| {
@@ -716,7 +720,8 @@ impl DataStorage for IndexedDbStorage {
             }
 
             // Delete all private keys
-            let private_keys: Vec<StoredPrivateKeys> = ops::get_all_typed(db, "private_keys").await?;
+            let private_keys: Vec<StoredPrivateKeys> =
+                ops::get_all_typed(db, "private_keys").await?;
             for keys in private_keys {
                 ops::delete_by_key(db, "private_keys", &keys.user_id).await?;
             }

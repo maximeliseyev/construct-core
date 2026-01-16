@@ -93,9 +93,9 @@ pub async fn get_all_values(db: &IdbDatabase, store_name: &str) -> Result<Vec<Js
         .map_err(|e| ConstructError::StorageError(format!("Failed to get all: {:?}", e)))?;
 
     let promise = idb_request_to_promise(&request);
-    let result = JsFuture::from(promise).await.map_err(|e| {
-        ConstructError::StorageError(format!("GetAll operation failed: {:?}", e))
-    })?;
+    let result = JsFuture::from(promise)
+        .await
+        .map_err(|e| ConstructError::StorageError(format!("GetAll operation failed: {:?}", e)))?;
 
     let array: js_sys::Array = result
         .dyn_into()
@@ -122,9 +122,9 @@ pub async fn delete_value(db: &IdbDatabase, store_name: &str, key: &JsValue) -> 
         .map_err(|e| ConstructError::StorageError(format!("Failed to delete: {:?}", e)))?;
 
     let promise = idb_request_to_promise(&request);
-    JsFuture::from(promise).await.map_err(|e| {
-        ConstructError::StorageError(format!("Delete operation failed: {:?}", e))
-    })?;
+    JsFuture::from(promise)
+        .await
+        .map_err(|e| ConstructError::StorageError(format!("Delete operation failed: {:?}", e)))?;
 
     Ok(())
 }
@@ -154,9 +154,9 @@ pub async fn get_by_index(
         .map_err(|e| ConstructError::StorageError(format!("Failed to get by index: {:?}", e)))?;
 
     let promise = idb_request_to_promise(&request);
-    let result = JsFuture::from(promise).await.map_err(|e| {
-        ConstructError::StorageError(format!("Get by index failed: {:?}", e))
-    })?;
+    let result = JsFuture::from(promise)
+        .await
+        .map_err(|e| ConstructError::StorageError(format!("Get by index failed: {:?}", e)))?;
 
     if result.is_null() || result.is_undefined() {
         Ok(None)
@@ -185,14 +185,14 @@ pub async fn get_all_by_index(
         .index(index_name)
         .map_err(|e| ConstructError::StorageError(format!("Failed to get index: {:?}", e)))?;
 
-    let request = index
-        .get_all_with_key(key)
-        .map_err(|e| ConstructError::StorageError(format!("Failed to get all by index: {:?}", e)))?;
+    let request = index.get_all_with_key(key).map_err(|e| {
+        ConstructError::StorageError(format!("Failed to get all by index: {:?}", e))
+    })?;
 
     let promise = idb_request_to_promise(&request);
-    let result = JsFuture::from(promise).await.map_err(|e| {
-        ConstructError::StorageError(format!("Get all by index failed: {:?}", e))
-    })?;
+    let result = JsFuture::from(promise)
+        .await
+        .map_err(|e| ConstructError::StorageError(format!("Get all by index failed: {:?}", e)))?;
 
     let array: js_sys::Array = result
         .dyn_into()
@@ -247,17 +247,15 @@ pub fn idb_open_request_to_promise(request: &web_sys::IdbOpenDbRequest) -> js_sy
 /// Сериализовать значение в JsValue
 #[cfg(target_arch = "wasm32")]
 pub fn serialize_to_jsvalue<T: serde::Serialize>(value: &T) -> Result<JsValue> {
-    serde_wasm_bindgen::to_value(value).map_err(|e| {
-        ConstructError::SerializationError(format!("Failed to serialize: {:?}", e))
-    })
+    serde_wasm_bindgen::to_value(value)
+        .map_err(|e| ConstructError::SerializationError(format!("Failed to serialize: {:?}", e)))
 }
 
 /// Десериализовать JsValue в тип
 #[cfg(target_arch = "wasm32")]
 pub fn deserialize_from_jsvalue<T: serde::de::DeserializeOwned>(value: JsValue) -> Result<T> {
-    serde_wasm_bindgen::from_value(value).map_err(|e| {
-        ConstructError::SerializationError(format!("Failed to deserialize: {:?}", e))
-    })
+    serde_wasm_bindgen::from_value(value)
+        .map_err(|e| ConstructError::SerializationError(format!("Failed to deserialize: {:?}", e)))
 }
 
 // ============================================================================

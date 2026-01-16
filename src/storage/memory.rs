@@ -198,11 +198,7 @@ impl DataStorage for MemoryStorage {
         Ok(lock.values().cloned().collect())
     }
 
-    async fn update_contact_last_message(
-        &self,
-        contact_id: &str,
-        timestamp: i64,
-    ) -> Result<()> {
+    async fn update_contact_last_message(&self, contact_id: &str, timestamp: i64) -> Result<()> {
         let mut lock = self.contacts.lock().unwrap();
         if let Some(contact) = lock.get_mut(contact_id) {
             contact.last_message_at = Some(timestamp);

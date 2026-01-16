@@ -302,7 +302,9 @@ impl DataStorage for IOSStorageAdapter {
         }
     }
 
-    fn load_contacts(&self) -> impl std::future::Future<Output = Result<Vec<StoredContact>>> + Send {
+    fn load_contacts(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<StoredContact>>> + Send {
         let callback = self.data_callback().clone();
         async move {
             let contacts_json = callback.load_contacts()?;
@@ -375,7 +377,9 @@ impl DataStorage for IOSStorageAdapter {
         }
     }
 
-    fn load_conversations(&self) -> impl std::future::Future<Output = Result<Vec<Conversation>>> + Send {
+    fn load_conversations(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<Conversation>>> + Send {
         let callback = self.data_callback().clone();
         async move {
             let conversations_json = callback.load_conversations()?;

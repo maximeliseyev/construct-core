@@ -122,8 +122,8 @@ impl<S: SecureStorage> LongPollingManager<S> {
             message_handler,
             running: Arc::new(AtomicBool::new(false)),
             last_message_id: Arc::new(std::sync::Mutex::new(None)),
-            poll_timeout_secs: 30, // 30 секунд long polling timeout
-            min_retry_delay_ms: 1000, // 1 секунда
+            poll_timeout_secs: 30,     // 30 секунд long polling timeout
+            min_retry_delay_ms: 1000,  // 1 секунда
             max_retry_delay_ms: 30000, // 30 секунд
         }
     }
@@ -323,12 +323,12 @@ impl<S: SecureStorage> LongPollingManagerBuilder<S> {
     }
 
     pub fn build(self) -> Result<LongPollingManager<S>> {
-        let rest_client = self.rest_client.ok_or_else(|| {
-            ConstructError::InvalidInput("REST client is required".to_string())
-        })?;
-        let token_manager = self.token_manager.ok_or_else(|| {
-            ConstructError::InvalidInput("Token manager is required".to_string())
-        })?;
+        let rest_client = self
+            .rest_client
+            .ok_or_else(|| ConstructError::InvalidInput("REST client is required".to_string()))?;
+        let token_manager = self
+            .token_manager
+            .ok_or_else(|| ConstructError::InvalidInput("Token manager is required".to_string()))?;
         let message_handler = self.message_handler.ok_or_else(|| {
             ConstructError::InvalidInput("Message handler is required".to_string())
         })?;

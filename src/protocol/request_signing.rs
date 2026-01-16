@@ -50,10 +50,8 @@ pub fn sign_request(
     let public_key = signing_key.verifying_key();
 
     // 6. Конвертировать в Base64
-    let signature_base64 =
-        base64::engine::general_purpose::STANDARD.encode(signature.to_bytes());
-    let public_key_base64 =
-        base64::engine::general_purpose::STANDARD.encode(public_key.to_bytes());
+    let signature_base64 = base64::engine::general_purpose::STANDARD.encode(signature.to_bytes());
+    let public_key_base64 = base64::engine::general_purpose::STANDARD.encode(public_key.to_bytes());
 
     Ok((signature_base64, public_key_base64, timestamp))
 }
@@ -68,32 +66,33 @@ pub fn verify_request_signature(
     public_key_base64: &str,
     timestamp: i64,
 ) -> Result<bool> {
+    use crate::utils::error::ConstructError;
     use base64::Engine;
     use ed25519_dalek::{Verifier, VerifyingKey};
-    use crate::utils::error::ConstructError;
 
     // 1. Декодировать signature и public key
     let signature_bytes = base64::engine::general_purpose::STANDARD
         .decode(signature_base64)
-        .map_err(|e| ConstructError::ValidationError(format!("Invalid signature base64: {:?}", e)))?;
+        .map_err(|e| {
+            ConstructError::ValidationError(format!("Invalid signature base64: {:?}", e))
+        })?;
     let public_key_bytes = base64::engine::general_purpose::STANDARD
         .decode(public_key_base64)
-        .map_err(|e| ConstructError::ValidationError(format!("Invalid public key base64: {:?}", e)))?;
+        .map_err(|e| {
+            ConstructError::ValidationError(format!("Invalid public key base64: {:?}", e))
+        })?;
 
-    let signature = Signature::from_bytes(
-        signature_bytes
-            .as_slice()
-            .try_into()
-            .map_err(|_| ConstructError::ValidationError("Invalid signature length".to_string()))?,
-    );
+    let signature =
+        Signature::from_bytes(signature_bytes.as_slice().try_into().map_err(|_| {
+            ConstructError::ValidationError("Invalid signature length".to_string())
+        })?);
 
     let public_key_array: [u8; 32] = public_key_bytes
         .as_slice()
         .try_into()
         .map_err(|_| ConstructError::ValidationError("Invalid public key length".to_string()))?;
-    let verifying_key = VerifyingKey::from_bytes(&public_key_array).map_err(|e| {
-        ConstructError::ValidationError(format!("Invalid public key: {:?}", e))
-    })?;
+    let verifying_key = VerifyingKey::from_bytes(&public_key_array)
+        .map_err(|e| ConstructError::ValidationError(format!("Invalid public key: {:?}", e)))?;
 
     // 2. Вычислить SHA256 хэш body
     let mut hasher = Sha256::new();
@@ -153,9 +152,15 @@ mod tests {
             sign_request(method, path, original_body, &signing_key).unwrap();
 
         // Попытка проверить с модифицированным body
-        let is_valid =
-            verify_request_signature(method, path, modified_body, &signature, &public_key, timestamp)
-                .unwrap();
+        let is_valid = verify_request_signature(
+            method,
+            path,
+            modified_body,
+            &signature,
+            &public_key,
+            timestamp,
+        )
+        .unwrap();
 
         assert!(!is_valid, "Signature should be invalid for modified body");
     }
