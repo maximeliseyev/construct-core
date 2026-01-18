@@ -268,6 +268,7 @@ pub struct AuthTokens {
     pub expires_at: i64,
 
     /// User ID (UUID)
+    // Note: IndexedDB keyPath настроен на "userId" для соответствия serde rename
     #[serde(rename = "userId")]
     pub user_id: String,
 }

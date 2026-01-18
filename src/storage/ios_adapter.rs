@@ -26,7 +26,7 @@ impl SecureStorage for IOSStorageAdapter {
         let callback = self.secure_callback().clone();
         async move {
             let json = json?;
-            callback.save_auth_tokens(user_id, json)
+            callback.save_auth_tokens(user_id, json).map_err(ConstructError::from)
         }
     }
 
@@ -36,7 +36,7 @@ impl SecureStorage for IOSStorageAdapter {
         let user_id = self.user_id().to_string();
         let callback = self.secure_callback().clone();
         async move {
-            match callback.load_auth_tokens(user_id)? {
+            match callback.load_auth_tokens(user_id).map_err(ConstructError::from)? {
                 Some(json) => Ok(Some(deserialize_from_json(&json)?)),
                 None => Ok(None),
             }
@@ -46,7 +46,7 @@ impl SecureStorage for IOSStorageAdapter {
     fn clear_auth_tokens(&self) -> impl std::future::Future<Output = Result<()>> + Send {
         let user_id = self.user_id().to_string();
         let callback = self.secure_callback().clone();
-        async move { callback.delete_auth_tokens(user_id) }
+        async move { callback.delete_auth_tokens(user_id).map_err(ConstructError::from) }
     }
 
     fn save_private_keys(
@@ -58,7 +58,7 @@ impl SecureStorage for IOSStorageAdapter {
         let callback = self.secure_callback().clone();
         async move {
             let json = json?;
-            callback.save_private_keys(user_id, json)
+            callback.save_private_keys(user_id, json).map_err(ConstructError::from)
         }
     }
 
@@ -68,7 +68,7 @@ impl SecureStorage for IOSStorageAdapter {
         let user_id = self.user_id().to_string();
         let callback = self.secure_callback().clone();
         async move {
-            match callback.load_private_keys(user_id)? {
+            match callback.load_private_keys(user_id).map_err(ConstructError::from)? {
                 Some(json) => Ok(Some(deserialize_from_json(&json)?)),
                 None => Ok(None),
             }
@@ -78,7 +78,7 @@ impl SecureStorage for IOSStorageAdapter {
     fn clear_private_keys(&self) -> impl std::future::Future<Output = Result<()>> + Send {
         let user_id = self.user_id().to_string();
         let callback = self.secure_callback().clone();
-        async move { callback.delete_private_keys(user_id) }
+        async move { callback.delete_private_keys(user_id).map_err(ConstructError::from) }
     }
 
     fn save_session(
@@ -91,7 +91,7 @@ impl SecureStorage for IOSStorageAdapter {
         let callback = self.secure_callback().clone();
         async move {
             let json = json?;
-            callback.save_session(session_id, json)
+            callback.save_session(session_id, json).map_err(ConstructError::from)
         }
     }
 
@@ -102,7 +102,7 @@ impl SecureStorage for IOSStorageAdapter {
         let contact_id = contact_id.to_string();
         let callback = self.secure_callback().clone();
         async move {
-            let sessions_json = callback.load_sessions_by_contact(contact_id)?;
+            let sessions_json = callback.load_sessions_by_contact(contact_id).map_err(ConstructError::from)?;
 
             if sessions_json.is_empty() {
                 return Ok(None);
@@ -119,11 +119,11 @@ impl SecureStorage for IOSStorageAdapter {
         let contact_id = contact_id.to_string();
         let callback = self.secure_callback().clone();
         async move {
-            let sessions_json = callback.load_sessions_by_contact(contact_id.clone())?;
+            let sessions_json = callback.load_sessions_by_contact(contact_id.clone()).map_err(ConstructError::from)?;
 
             for json in sessions_json {
                 let session: StoredSession = deserialize_from_json(&json)?;
-                callback.delete_session(session.session_id.clone())?;
+                callback.delete_session(session.session_id.clone()).map_err(ConstructError::from)?;
             }
 
             Ok(())
@@ -140,7 +140,7 @@ impl SecureStorage for IOSStorageAdapter {
 
     fn clear_all_sessions(&self) -> impl std::future::Future<Output = Result<()>> + Send {
         let callback = self.secure_callback().clone();
-        async move { callback.clear_all_secure_data() }
+        async move { callback.clear_all_secure_data().map_err(ConstructError::from) }
     }
 
     fn save_app_metadata(
@@ -152,7 +152,7 @@ impl SecureStorage for IOSStorageAdapter {
         let callback = self.data_callback().clone();
         async move {
             let json = json?;
-            callback.save_metadata(user_id, json)
+            callback.save_metadata(user_id, json).map_err(ConstructError::from)
         }
     }
 
@@ -162,7 +162,7 @@ impl SecureStorage for IOSStorageAdapter {
         let user_id = self.user_id().to_string();
         let callback = self.data_callback().clone();
         async move {
-            match callback.load_metadata(user_id)? {
+            match callback.load_metadata(user_id).map_err(ConstructError::from)? {
                 Some(json) => Ok(Some(deserialize_from_json(&json)?)),
                 None => Ok(None),
             }
@@ -183,7 +183,7 @@ impl DataStorage for IOSStorageAdapter {
         let callback = self.data_callback().clone();
         async move {
             let json = json?;
-            callback.save_message(json)
+            callback.save_message(json).map_err(ConstructError::from)
         }
     }
 
@@ -195,13 +195,13 @@ impl DataStorage for IOSStorageAdapter {
         let message_id = message_id.to_string();
         let callback = self.data_callback().clone();
         async move {
-            let json_opt = callback.load_message(message_id.clone())?;
+            let json_opt = callback.load_message(message_id.clone()).map_err(ConstructError::from)?;
             match json_opt {
                 Some(json) => {
                     let mut message: StoredMessage = deserialize_from_json(&json)?;
                     message.status = status;
                     let json = serialize_to_json(&message)?;
-                    callback.save_message(json)
+                    callback.save_message(json).map_err(ConstructError::from)
                 }
                 None => Err(ConstructError::NotFound(format!(
                     "Message {} not found",
@@ -221,7 +221,7 @@ impl DataStorage for IOSStorageAdapter {
         let callback = self.data_callback().clone();
         async move {
             let messages_json =
-                callback.load_messages(conversation_id, limit as u32, offset as u32)?;
+                callback.load_messages(conversation_id, limit as u32, offset as u32).map_err(ConstructError::from)?;
 
             let mut messages = Vec::new();
             for json in messages_json {
@@ -239,7 +239,7 @@ impl DataStorage for IOSStorageAdapter {
         let message_id = message_id.to_string();
         let callback = self.data_callback().clone();
         async move {
-            match callback.load_message(message_id)? {
+            match callback.load_message(message_id).map_err(ConstructError::from)? {
                 Some(json) => Ok(Some(deserialize_from_json(&json)?)),
                 None => Ok(None),
             }
@@ -252,7 +252,7 @@ impl DataStorage for IOSStorageAdapter {
     ) -> impl std::future::Future<Output = Result<()>> + Send {
         let message_id = message_id.to_string();
         let callback = self.data_callback().clone();
-        async move { callback.delete_message(message_id) }
+        async move { callback.delete_message(message_id).map_err(ConstructError::from) }
     }
 
     fn delete_messages_in_conversation(
@@ -261,7 +261,7 @@ impl DataStorage for IOSStorageAdapter {
     ) -> impl std::future::Future<Output = Result<()>> + Send {
         let conversation_id = conversation_id.to_string();
         let callback = self.data_callback().clone();
-        async move { callback.delete_messages_in_conversation(conversation_id) }
+        async move { callback.delete_messages_in_conversation(conversation_id).map_err(ConstructError::from) }
     }
 
     fn count_messages(
@@ -271,7 +271,7 @@ impl DataStorage for IOSStorageAdapter {
         let conversation_id = conversation_id.to_string();
         let callback = self.data_callback().clone();
         async move {
-            let count = callback.count_messages(conversation_id)?;
+            let count = callback.count_messages(conversation_id).map_err(ConstructError::from)?;
             Ok(count as usize)
         }
     }
@@ -284,7 +284,7 @@ impl DataStorage for IOSStorageAdapter {
         let callback = self.data_callback().clone();
         async move {
             let json = json?;
-            callback.save_contact(json)
+            callback.save_contact(json).map_err(ConstructError::from)
         }
     }
 
@@ -295,7 +295,7 @@ impl DataStorage for IOSStorageAdapter {
         let contact_id = contact_id.to_string();
         let callback = self.data_callback().clone();
         async move {
-            match callback.load_contact(contact_id)? {
+            match callback.load_contact(contact_id).map_err(ConstructError::from)? {
                 Some(json) => Ok(Some(deserialize_from_json(&json)?)),
                 None => Ok(None),
             }
@@ -307,7 +307,7 @@ impl DataStorage for IOSStorageAdapter {
     ) -> impl std::future::Future<Output = Result<Vec<StoredContact>>> + Send {
         let callback = self.data_callback().clone();
         async move {
-            let contacts_json = callback.load_contacts()?;
+            let contacts_json = callback.load_contacts().map_err(ConstructError::from)?;
 
             let mut contacts = Vec::new();
             for json in contacts_json {
@@ -326,13 +326,13 @@ impl DataStorage for IOSStorageAdapter {
         let contact_id = contact_id.to_string();
         let callback = self.data_callback().clone();
         async move {
-            let json_opt = callback.load_contact(contact_id.clone())?;
+            let json_opt = callback.load_contact(contact_id.clone()).map_err(ConstructError::from)?;
             match json_opt {
                 Some(json) => {
                     let mut contact: StoredContact = deserialize_from_json(&json)?;
                     contact.last_message_at = Some(timestamp);
                     let json = serialize_to_json(&contact)?;
-                    callback.save_contact(json)
+                    callback.save_contact(json).map_err(ConstructError::from)
                 }
                 None => Err(ConstructError::NotFound(format!(
                     "Contact {} not found",
@@ -348,7 +348,7 @@ impl DataStorage for IOSStorageAdapter {
     ) -> impl std::future::Future<Output = Result<()>> + Send {
         let contact_id = contact_id.to_string();
         let callback = self.data_callback().clone();
-        async move { callback.delete_contact(contact_id) }
+        async move { callback.delete_contact(contact_id).map_err(ConstructError::from) }
     }
 
     fn save_conversation(
@@ -359,7 +359,7 @@ impl DataStorage for IOSStorageAdapter {
         let callback = self.data_callback().clone();
         async move {
             let json = json?;
-            callback.save_conversation(json)
+            callback.save_conversation(json).map_err(ConstructError::from)
         }
     }
 
@@ -370,7 +370,7 @@ impl DataStorage for IOSStorageAdapter {
         let conversation_id = conversation_id.to_string();
         let callback = self.data_callback().clone();
         async move {
-            match callback.load_conversation(conversation_id)? {
+            match callback.load_conversation(conversation_id).map_err(ConstructError::from)? {
                 Some(json) => Ok(Some(deserialize_from_json(&json)?)),
                 None => Ok(None),
             }
@@ -382,7 +382,7 @@ impl DataStorage for IOSStorageAdapter {
     ) -> impl std::future::Future<Output = Result<Vec<Conversation>>> + Send {
         let callback = self.data_callback().clone();
         async move {
-            let conversations_json = callback.load_conversations()?;
+            let conversations_json = callback.load_conversations().map_err(ConstructError::from)?;
 
             let mut conversations = Vec::new();
             for json in conversations_json {
@@ -401,13 +401,13 @@ impl DataStorage for IOSStorageAdapter {
         let conversation_id = conversation_id.to_string();
         let callback = self.data_callback().clone();
         async move {
-            let json_opt = callback.load_conversation(conversation_id.clone())?;
+            let json_opt = callback.load_conversation(conversation_id.clone()).map_err(ConstructError::from)?;
             match json_opt {
                 Some(json) => {
                     let mut conversation: Conversation = deserialize_from_json(&json)?;
                     conversation.unread_count = count;
                     let json = serialize_to_json(&conversation)?;
-                    callback.save_conversation(json)
+                    callback.save_conversation(json).map_err(ConstructError::from)
                 }
                 None => Err(ConstructError::NotFound(format!(
                     "Conversation {} not found",
@@ -423,12 +423,12 @@ impl DataStorage for IOSStorageAdapter {
     ) -> impl std::future::Future<Output = Result<()>> + Send {
         let conversation_id = conversation_id.to_string();
         let callback = self.data_callback().clone();
-        async move { callback.delete_conversation(conversation_id) }
+        async move { callback.delete_conversation(conversation_id).map_err(ConstructError::from) }
     }
 
     fn clear_all(&self) -> impl std::future::Future<Output = Result<()>> + Send {
         let callback = self.data_callback().clone();
-        async move { callback.clear_all_data() }
+        async move { callback.clear_all_data().map_err(ConstructError::from) }
     }
 }
 

@@ -55,6 +55,20 @@ pub type Result<T> = std::result::Result<T, ConstructError>;
 // Alias для совместимости
 pub type MessengerError = ConstructError;
 
+// Для конвертации String ошибок из callback интерфейсов
+impl From<String> for ConstructError {
+    fn from(error: String) -> Self {
+        ConstructError::StorageError(error)
+    }
+}
+
+// Для конвертации &str ошибок
+impl From<&str> for ConstructError {
+    fn from(error: &str) -> Self {
+        ConstructError::StorageError(error.to_string())
+    }
+}
+
 // Для WASM-биндингов
 #[cfg(target_arch = "wasm32")]
 impl From<ConstructError> for wasm_bindgen::JsValue {

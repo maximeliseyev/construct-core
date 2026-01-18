@@ -1,6 +1,6 @@
 [package]
 name = "construct-core"
-version = "0.2.0"
+version = "0.2.3"
 authors = ["Konstruct Team"]
 edition = "2021"
 rust-version = "1.75"
@@ -22,7 +22,7 @@ unsafe_attr_outside_unsafe = "allow"
 default = []
 # Платформенные features (взаимоисключающие)
 ios = ["uniffi"]
-wasm = ["wasm-bindgen", "web-sys", "serde-wasm-bindgen", "wasm-bindgen-futures", "js-sys"]
+wasm = []
 # Опциональные возможности
 post-quantum = [
     "dep:pqcrypto-kyber",
@@ -72,8 +72,8 @@ uniffi = { version = "0.30", features = ["build"], optional = true }
 
 # WASM bindings (optional)
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = [
+wasm-bindgen = { version = "0.2" }
+web-sys = { version = "0.3", features = [
     # REST API / Fetch
     "Request",
     "RequestInit",
@@ -104,9 +104,9 @@ web-sys = { version = "0.3", optional = true, features = [
     "console",
     "Event",
 ] }
-serde-wasm-bindgen = { version = "0.6", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-js-sys = { version = "0.3", optional = true }
+serde-wasm-bindgen = { version = "0.6" }
+wasm-bindgen-futures = { version = "0.4" }
+js-sys = { version = "0.3" }
 getrandom = { version = "0.2", features = ["js"] }
 uuid = { version = "1.0", features = ["v4", "serde", "js"] }
 

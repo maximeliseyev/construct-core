@@ -40,9 +40,9 @@ impl IndexedDbStorage {
             .map_err(|e| ConstructError::StorageError(format!("IndexedDB not available: {:?}", e)))?
             .ok_or_else(|| ConstructError::StorageError("IndexedDB not supported".to_string()))?;
 
-        // Открыть или создать БД (версия 2 для новых object stores)
+        // Открыть или создать БД (версия 3 - исправлен keyPath для auth_tokens)
         let open_request = idb
-            .open_with_u32("construct_messenger", 2)
+            .open_with_u32("construct_messenger", 3)
             .map_err(|e| ConstructError::StorageError(format!("Failed to open DB: {:?}", e)))?;
 
         let onupgradeneeded =
@@ -64,6 +64,19 @@ impl IndexedDbStorage {
                     params.set_key_path(&JsValue::from_str(key_path));
                     db.create_object_store_with_optional_parameters(name, &params)
                         .ok()
+                };
+
+                // Вспомогательная функция для удаления и пересоздания store (для миграций keyPath)
+                // Используется когда нужно изменить keyPath существующего store
+                let recreate_store = |db: &IdbDatabase, name: &str, key_path: &str| {
+                    // Попытаться удалить старый store (игнорируем ошибку если не существует)
+                    // Это нужно для миграции keyPath, который нельзя изменить напрямую
+                    let _ = db.delete_object_store(name);
+                    
+                    // Создать новый store с правильным keyPath
+                    let mut params = web_sys::IdbObjectStoreParameters::new();
+                    params.set_key_path(&JsValue::from_str(key_path));
+                    db.create_object_store_with_optional_parameters(name, &params).ok()
                 };
 
                 // Создать object stores (игнорируем ошибки если уже существуют)
@@ -94,8 +107,12 @@ impl IndexedDbStorage {
                 }
 
                 // Новые object stores для REST API (добавлены в версии 2)
-                if let Some(_store) = create_store_safe(&db, "auth_tokens", "user_id") {
-                    // Store создан
+                // В версии 3: исправлен keyPath для auth_tokens (user_id -> userId)
+                // Note: keyPath должен совпадать с полем в сериализованном объекте
+                // AuthTokens использует serde(rename = "userId"), поэтому keyPath = "userId"
+                // Для миграции удаляем старый store и создаем новый с правильным keyPath
+                if let Some(_store) = recreate_store(&db, "auth_tokens", "userId") {
+                    // Store пересоздан с правильным keyPath
                 }
 
                 if let Some(_store) = create_store_safe(&db, "conversations", "id") {
