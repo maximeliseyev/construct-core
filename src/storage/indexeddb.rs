@@ -72,11 +72,12 @@ impl IndexedDbStorage {
                     // Попытаться удалить старый store (игнорируем ошибку если не существует)
                     // Это нужно для миграции keyPath, который нельзя изменить напрямую
                     let _ = db.delete_object_store(name);
-                    
+
                     // Создать новый store с правильным keyPath
                     let mut params = web_sys::IdbObjectStoreParameters::new();
                     params.set_key_path(&JsValue::from_str(key_path));
-                    db.create_object_store_with_optional_parameters(name, &params).ok()
+                    db.create_object_store_with_optional_parameters(name, &params)
+                        .ok()
                 };
 
                 // Создать object stores (игнорируем ошибки если уже существуют)
