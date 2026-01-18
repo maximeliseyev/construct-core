@@ -17,10 +17,10 @@ pub type CallbackResult<T> = std::result::Result<T, String>;
 
 /// Callback интерфейс для secure storage (Keychain)
 /// iOS клиент должен предоставить реализацию через Swift
-/// 
-/// Note: Используем CallbackResult<T> (Result<T, String>) вместо Result<T, ConstructError>
-/// для совместимости с UniFFI callback интерфейсами
-#[cfg_attr(feature = "uniffi", uniffi::export(with_foreign))]
+///
+/// Note: Этот trait НЕ экспортируется через UniFFI, так как iOS приложение
+/// использует нативные Swift реализации для работы с Keychain.
+/// Trait определён здесь для внутреннего использования в Rust коде.
 pub trait SecureStorageCallback: Send + Sync {
     /// Сохранить токены авторизации в Keychain
     fn save_auth_tokens(&self, user_id: String, tokens_json: String) -> CallbackResult<()>;
@@ -58,10 +58,10 @@ pub trait SecureStorageCallback: Send + Sync {
 
 /// Callback интерфейс для data storage (Core Data/UserDefaults)
 /// iOS клиент должен предоставить реализацию через Swift
-/// 
-/// Note: Используем CallbackResult<T> (Result<T, String>) вместо Result<T, ConstructError>
-/// для совместимости с UniFFI callback интерфейсами
-#[cfg_attr(feature = "uniffi", uniffi::export(with_foreign))]
+///
+/// Note: Этот trait НЕ экспортируется через UniFFI, так как iOS приложение
+/// использует нативные Swift реализации для работы с Core Data/UserDefaults.
+/// Trait определён здесь для внутреннего использования в Rust коде.
 pub trait DataStorageCallback: Send + Sync {
     /// Сохранить сообщение
     fn save_message(&self, message_json: String) -> CallbackResult<()>;
