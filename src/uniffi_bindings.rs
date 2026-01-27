@@ -25,8 +25,8 @@ pub enum CryptoError {
     #[error("Session not found")]
     SessionNotFound,
 
-    #[error("Session initialization failed")]
-    SessionInitializationFailed,
+    #[error("Session initialization failed: {message}")]
+    SessionInitializationFailed { message: String },
 
     #[error("Encryption failed")]
     EncryptionFailed,
@@ -340,7 +340,9 @@ impl ClassicCryptoCore {
                     error = %e,
                     "init_session failed"
                 );
-                CryptoError::SessionInitializationFailed
+                CryptoError::SessionInitializationFailed {
+                    message: e.to_string()
+                }
             })?;
 
         // Return contact_id as the session identifier for Swift
@@ -471,7 +473,9 @@ impl ClassicCryptoCore {
                     message_number = first_msg.message_number,
                     "init_receiving_session_with_ephemeral failed"
                 );
-                CryptoError::SessionInitializationFailed
+                CryptoError::SessionInitializationFailed { 
+                    message: e.to_string()
+                }
             })?;
 
         // Convert plaintext bytes to UTF-8 string
