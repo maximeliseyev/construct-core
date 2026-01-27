@@ -341,7 +341,7 @@ impl ClassicCryptoCore {
                     "init_session failed"
                 );
                 CryptoError::SessionInitializationFailed {
-                    message: e.to_string()
+                    message: e.to_string(),
                 }
             })?;
 
@@ -473,17 +473,15 @@ impl ClassicCryptoCore {
                     message_number = first_msg.message_number,
                     "init_receiving_session_with_ephemeral failed"
                 );
-                CryptoError::SessionInitializationFailed { 
-                    message: e.to_string()
+                CryptoError::SessionInitializationFailed {
+                    message: e.to_string(),
                 }
             })?;
 
         // Convert plaintext bytes to UTF-8 string
         let decrypted_message =
-            String::from_utf8(plaintext_bytes).map_err(|e| {
-                CryptoError::DecryptionFailed {
-                    message: format!("UTF-8 conversion failed: {}", e)
-                }
+            String::from_utf8(plaintext_bytes).map_err(|e| CryptoError::DecryptionFailed {
+                message: format!("UTF-8 conversion failed: {}", e),
             })?;
 
         tracing::info!(
@@ -520,7 +518,7 @@ impl ClassicCryptoCore {
                     "encrypt_message failed"
                 );
                 CryptoError::EncryptionFailed {
-                    message: e.to_string()
+                    message: e.to_string(),
                 }
             })?;
 
@@ -596,14 +594,12 @@ impl ClassicCryptoCore {
                     "decrypt_message failed"
                 );
                 CryptoError::DecryptionFailed {
-                    message: e.to_string()
+                    message: e.to_string(),
                 }
             })?;
 
-        String::from_utf8(plaintext_bytes).map_err(|e| {
-            CryptoError::DecryptionFailed {
-                message: format!("UTF-8 conversion failed: {}", e)
-            }
+        String::from_utf8(plaintext_bytes).map_err(|e| CryptoError::DecryptionFailed {
+            message: format!("UTF-8 conversion failed: {}", e),
         })
     }
 
