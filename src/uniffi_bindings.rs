@@ -28,11 +28,11 @@ pub enum CryptoError {
     #[error("Session initialization failed: {message}")]
     SessionInitializationFailed { message: String },
 
-    #[error("Encryption failed")]
-    EncryptionFailed,
+    #[error("Encryption failed: {message}")]
+    EncryptionFailed { message: String },
 
-    #[error("Decryption failed")]
-    DecryptionFailed,
+    #[error("Decryption failed: {message}")]
+    DecryptionFailed { message: String },
 
     #[error("Invalid key data")]
     InvalidKeyData,
@@ -480,7 +480,11 @@ impl ClassicCryptoCore {
 
         // Convert plaintext bytes to UTF-8 string
         let decrypted_message =
-            String::from_utf8(plaintext_bytes).map_err(|_| CryptoError::DecryptionFailed)?;
+            String::from_utf8(plaintext_bytes).map_err(|e| {
+                CryptoError::DecryptionFailed {
+                    message: format!("UTF-8 conversion failed: {}", e)
+                }
+            })?;
 
         tracing::info!(
             "Session initialized, plaintext length: {}",
@@ -515,7 +519,9 @@ impl ClassicCryptoCore {
                     plaintext_len = plaintext.len(),
                     "encrypt_message failed"
                 );
-                CryptoError::EncryptionFailed
+                CryptoError::EncryptionFailed {
+                    message: e.to_string()
+                }
             })?;
 
         tracing::debug!(
@@ -581,9 +587,24 @@ impl ClassicCryptoCore {
         let mut client = self.inner.lock().unwrap();
         let plaintext_bytes = client
             .decrypt_message(contact_id, &encrypted_message)
-            .map_err(|_| CryptoError::DecryptionFailed)?;
+            .map_err(|e| {
+                tracing::error!(
+                    target: "crypto::uniffi",
+                    contact_id = %contact_id,
+                    message_number = message_number,
+                    error = %e,
+                    "decrypt_message failed"
+                );
+                CryptoError::DecryptionFailed {
+                    message: e.to_string()
+                }
+            })?;
 
-        String::from_utf8(plaintext_bytes).map_err(|_| CryptoError::DecryptionFailed)
+        String::from_utf8(plaintext_bytes).map_err(|e| {
+            CryptoError::DecryptionFailed {
+                message: format!("UTF-8 conversion failed: {}", e)
+            }
+        })
     }
 
     /// Deletes a session for a contact, allowing a new one to be created.
