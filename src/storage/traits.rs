@@ -279,13 +279,13 @@ impl AuthTokens {
     /// # Parameters
     /// - `buffer_seconds`: Буфер в секундах (обычно 300 = 5 минут)
     pub fn is_expiring_soon(&self, buffer_seconds: i64) -> bool {
-        let now = crate::utils::time::current_timestamp() as i64;
+        let now = crate::utils::time::current_timestamp();
         self.expires_at - now < buffer_seconds
     }
 
     /// Проверить, истёк ли токен
     pub fn is_expired(&self) -> bool {
-        let now = crate::utils::time::current_timestamp() as i64;
+        let now = crate::utils::time::current_timestamp();
         self.expires_at <= now
     }
 }

@@ -346,7 +346,7 @@ impl<P: CryptoProvider, S: SecureStorage + DataStorage> AppState<P, S> {
         // Обновить кеш
         self.message_cache
             .entry(to_contact_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(stored_message);
 
         self.ui_state.set_loading(false);
