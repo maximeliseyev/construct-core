@@ -47,6 +47,18 @@ pub enum CryptoError {
     MessagePackDeserializationFailed,
 }
 
+impl From<crate::error::CryptoError> for CryptoError {
+    fn from(err: crate::error::CryptoError) -> Self {
+        match err {
+            crate::error::CryptoError::InvalidKeyData => CryptoError::InvalidKeyData,
+            crate::error::CryptoError::InvalidCiphertext => CryptoError::InvalidCiphertext,
+            e => CryptoError::SessionInitializationFailed {
+                message: e.to_string(),
+            },
+        }
+    }
+}
+
 // Registration bundle as JSON - matches UDL
 // Note: We use UDL definition, not derive macro
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,13 +111,13 @@ pub struct PrivateKeysJson {
 // Note: These are UniFFI-compatible wrappers, actual crypto logic is in crypto::invite_crypto
 #[derive(Debug, Clone)]
 pub struct EphemeralKeyPair {
-    pub secret_key: Vec<u8>,  // 32 bytes
-    pub public_key: Vec<u8>,  // 32 bytes
+    pub secret_key: Vec<u8>, // 32 bytes
+    pub public_key: Vec<u8>, // 32 bytes
 }
 
 #[derive(Debug, Clone)]
 pub struct InviteSignature {
-    pub signature: Vec<u8>,  // 64 bytes
+    pub signature: Vec<u8>, // 64 bytes
 }
 
 // UniFFI interface implementation (exported via UDL, not proc-macros)
@@ -715,7 +727,11 @@ pub fn verify_invite_signature(
     signature: Vec<u8>,
     verifying_key: Vec<u8>,
 ) -> Result<bool, CryptoError> {
-    invite_crypto::verify_invite_signature(&data, &signature, &verifying_key)
+    Ok(invite_crypto::verify_invite_signature(
+        &data,
+        &signature,
+        &verifying_key,
+    )?)
 }
 
 // ============================================================================

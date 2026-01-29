@@ -156,12 +156,10 @@ impl SecureStorage for IOSStorageAdapter {
         }
     }
 
-    fn list_sessions(&self) -> impl std::future::Future<Output = Result<Vec<String>>> + Send {
-        async move {
-            // Требует дополнительного callback метода для получения списка всех contact_id
-            // Пока возвращаем пустой список
-            Ok(Vec::new())
-        }
+    async fn list_sessions(&self) -> Result<Vec<String>> {
+        self.secure_callback()
+            .list_session_contact_ids()
+            .map_err(ConstructError::from)
     }
 
     fn clear_all_sessions(&self) -> impl std::future::Future<Output = Result<()>> + Send {

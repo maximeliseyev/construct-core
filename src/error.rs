@@ -26,6 +26,10 @@ pub enum CryptoError {
     SerializationError(String),
     #[error("Deserialization error: {0}")]
     DeserializationError(String),
+    #[error("Invalid key data")]
+    InvalidKeyData,
+    #[error("Invalid ciphertext")]
+    InvalidCiphertext,
     #[error("Other crypto error: {0}")]
     Other(String),
 }

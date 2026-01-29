@@ -58,14 +58,12 @@ pub struct RequestSignature {
 }
 
 /// Опции для HTTP запроса
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct RequestOptions {
     pub access_token: Option<String>,
     pub csrf_token: Option<String>,
     pub request_signature: Option<RequestSignature>,
 }
-
 
 // ============================================================================
 // REST Client (WASM implementation)

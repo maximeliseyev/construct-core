@@ -9,8 +9,8 @@
 pub struct PQEncryptedMessage {
     pub ciphertext: Vec<u8>,
     pub classical_dh_public: [u8; 32],
-    // This would likely be a Kyber ciphertext.
-    pub kyber_ciphertext: Option<Vec<u8>>,
+    // ML-KEM ciphertext (formerly Kyber)
+    pub mlkem_ciphertext: Option<Vec<u8>>,
     pub message_number: u32,
     pub is_pq: bool,
 }
@@ -26,7 +26,7 @@ pub struct PQDoubleRatchetSession {
     pq_sending_chain: [u8; 32],
 
     // Ключи для следующего обновления
-    next_kyber_public: Option<Vec<u8>>,
+    next_mlkem_public: Option<Vec<u8>>,
     next_classical_public: Option<[u8; 32]>,
 }
 
@@ -53,7 +53,7 @@ impl PQDoubleRatchetSession {
         PQEncryptedMessage {
             ciphertext: plaintext.to_vec(), // Not actually encrypted
             classical_dh_public: [0; 32],   // Placeholder
-            kyber_ciphertext: None,
+            mlkem_ciphertext: None,
             message_number: 0,
             is_pq: true,
         }

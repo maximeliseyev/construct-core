@@ -54,6 +54,9 @@ pub trait SecureStorageCallback: Send + Sync {
 
     /// Очистить все secure данные
     fn clear_all_secure_data(&self) -> CallbackResult<()>;
+
+    /// Получить список всех contact_id, для которых есть сохранённые сессии
+    fn list_session_contact_ids(&self) -> CallbackResult<Vec<String>>;
 }
 
 /// Callback интерфейс для data storage (Core Data/UserDefaults)

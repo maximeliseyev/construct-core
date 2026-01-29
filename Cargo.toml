@@ -1,9 +1,9 @@
 [package]
 name = "construct-core"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Konstruct Team"]
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.80"
 license = "MIT"
 repository = "https://github.com/maximeliseyev/construct-core"
 description = "Core cryptographic engine for Construct Messenger with E2EE"
@@ -25,8 +25,8 @@ ios = ["uniffi"]
 wasm = []
 # Опциональные возможности
 post-quantum = [
-    "dep:pqcrypto-kyber",
-    "dep:pqcrypto-dilithium",
+    "dep:pqcrypto-mlkem",
+    "dep:pqcrypto-mldsa",
     "dep:pqcrypto-traits",
 ]
 # Для тестов и разработки
@@ -39,7 +39,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
 serde_json = "1.0"
 rmp-serde = "1.1"
-postcard = { version = "1", features = ["alloc"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 base64 = "0.22"
 
 # Ошибки и утилиты
@@ -62,9 +62,9 @@ rand = "0.8"
 rand_core = { version = "0.6", features = ["getrandom"] }
 zeroize = { version = "1.0", features = ["zeroize_derive"] }
 
-# Post-Quantum (optional)
-pqcrypto-kyber = { version = "0.8", optional = true }
-pqcrypto-dilithium = { version = "0.5", optional = true }
+# Post-Quantum (optional) - ML-KEM and ML-DSA (NIST standardized names)
+pqcrypto-mlkem = { version = "0.1", optional = true }
+pqcrypto-mldsa = { version = "0.1", optional = true }
 pqcrypto-traits = { version = "0.3", optional = true }
 
 # iOS bindings (optional)

@@ -326,21 +326,21 @@ mod tests {
     fn test_auth_tokens_expiration() {
         let now = crate::utils::time::current_timestamp() as i64;
 
-        // Токен истекает через 10 минут
+        // Токен истекает через 2 минуты
         let tokens = AuthTokens {
             access_token: "test".to_string(),
             refresh_token: "test".to_string(),
-            expires_at: now + 600, // +10 минут
+            expires_at: now + 120, // +2 минуты
             user_id: "test_user".to_string(),
         };
 
         // Не истекает сейчас
         assert!(!tokens.is_expired());
 
-        // Но истекает скоро (буфер 5 минут)
+        // Истекает скоро (буфер 5 минут = 300 сек, токен живёт 120 сек < 300)
         assert!(tokens.is_expiring_soon(300));
 
-        // Не истекает скоро (буфер 1 минута)
+        // Не истекает скоро (буфер 1 минута = 60 сек, токен живёт 120 сек > 60)
         assert!(!tokens.is_expiring_soon(60));
     }
 
