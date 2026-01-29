@@ -74,6 +74,19 @@ interface ClassicCryptoCore {
 };
 
 // ============================================================================
+// Invite Crypto (Dynamic Contact Invites)
+// ============================================================================
+
+dictionary EphemeralKeyPair {
+    sequence<u8> secret_key;
+    sequence<u8> public_key;
+};
+
+dictionary InviteSignature {
+    sequence<u8> signature;
+};
+
+// ============================================================================
 // Traffic Protection (Cover Traffic & Timing)
 // ============================================================================
 
@@ -120,6 +133,16 @@ namespace construct_core {
 
     [Throws=CryptoError]
     ClassicCryptoCore create_crypto_core_from_keys_json(string keys_json);
+
+    // Invite Crypto Functions
+    [Throws=CryptoError]
+    EphemeralKeyPair generate_ephemeral_keypair();
+    
+    [Throws=CryptoError]
+    InviteSignature sign_invite_data(string data, sequence<u8> identity_secret_key);
+    
+    [Throws=CryptoError]
+    boolean verify_invite_signature(string data, sequence<u8> signature, sequence<u8> verifying_key);
 
     // Traffic Protection Functions
     sequence<u8> generate_dummy_message(u64 size);

@@ -668,6 +668,37 @@ pub fn create_crypto_core_from_keys_json(
 }
 
 // ============================================================================
+// Invite Crypto Functions
+// ============================================================================
+
+use crate::crypto::invite_crypto;
+
+/// Generate ephemeral X25519 keypair for a single invite
+/// Returns a fresh keypair. Secret key should be discarded after invite creation.
+pub fn generate_ephemeral_keypair() -> Result<EphemeralKeyPair, CryptoError> {
+    invite_crypto::generate_ephemeral_keypair()
+}
+
+/// Sign invite data with Ed25519 identity key
+/// Creates a detached signature proving authenticity.
+pub fn sign_invite_data(
+    data: String,
+    identity_secret_key: Vec<u8>,
+) -> Result<InviteSignature, CryptoError> {
+    invite_crypto::sign_invite_data(&data, &identity_secret_key)
+}
+
+/// Verify invite signature with Ed25519 verifying key
+/// Returns true if signature is valid, false otherwise.
+pub fn verify_invite_signature(
+    data: String,
+    signature: Vec<u8>,
+    verifying_key: Vec<u8>,
+) -> Result<bool, CryptoError> {
+    invite_crypto::verify_invite_signature(&data, &signature, &verifying_key)
+}
+
+// ============================================================================
 // Traffic Protection Bindings
 // ============================================================================
 

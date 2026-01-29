@@ -100,6 +100,9 @@ pub mod keys;
 
 pub mod master_key;
 
+/// Invite crypto - dynamic contact invites with ephemeral keys
+pub mod invite_crypto;
+
 // ============================================================================
 // Post-Quantum (conditionally compiled)
 // ============================================================================
