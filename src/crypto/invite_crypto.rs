@@ -12,7 +12,7 @@
 // - 3-5 minute TTL enforced by server
 
 use crate::uniffi_bindings::CryptoError;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifying, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use x25519_dalek::{PublicKey, StaticSecret};
 
 /// Ephemeral X25519 keypair for a single invite

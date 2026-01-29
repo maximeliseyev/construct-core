@@ -95,6 +95,19 @@ pub struct PrivateKeysJson {
     pub suite_id: String,
 }
 
+// Invite crypto types (exported via UDL)
+// Note: These are UniFFI-compatible wrappers, actual crypto logic is in crypto::invite_crypto
+#[derive(Debug, Clone)]
+pub struct EphemeralKeyPair {
+    pub secret_key: Vec<u8>,  // 32 bytes
+    pub public_key: Vec<u8>,  // 32 bytes
+}
+
+#[derive(Debug, Clone)]
+pub struct InviteSignature {
+    pub signature: Vec<u8>,  // 64 bytes
+}
+
 // UniFFI interface implementation (exported via UDL, not proc-macros)
 impl ClassicCryptoCore {
     /// Export registration bundle as JSON string
@@ -676,7 +689,11 @@ use crate::crypto::invite_crypto;
 /// Generate ephemeral X25519 keypair for a single invite
 /// Returns a fresh keypair. Secret key should be discarded after invite creation.
 pub fn generate_ephemeral_keypair() -> Result<EphemeralKeyPair, CryptoError> {
-    invite_crypto::generate_ephemeral_keypair()
+    let keypair = invite_crypto::generate_ephemeral_keypair()?;
+    Ok(EphemeralKeyPair {
+        secret_key: keypair.secret_key,
+        public_key: keypair.public_key,
+    })
 }
 
 /// Sign invite data with Ed25519 identity key
@@ -685,7 +702,10 @@ pub fn sign_invite_data(
     data: String,
     identity_secret_key: Vec<u8>,
 ) -> Result<InviteSignature, CryptoError> {
-    invite_crypto::sign_invite_data(&data, &identity_secret_key)
+    let sig = invite_crypto::sign_invite_data(&data, &identity_secret_key)?;
+    Ok(InviteSignature {
+        signature: sig.signature,
+    })
 }
 
 /// Verify invite signature with Ed25519 verifying key
