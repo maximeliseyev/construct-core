@@ -108,7 +108,8 @@ jobs:
             --tag v0.30.0 \
             --bin uniffi-bindgen \
             uniffi-bindgen-cli \
-            --locked
+            --locked \
+            --force
       
       - name: Build iOS framework
         run: |
