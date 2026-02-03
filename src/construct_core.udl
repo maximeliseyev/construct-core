@@ -143,6 +143,9 @@ namespace construct_core {
     
     [Throws=CryptoError]
     boolean verify_invite_signature(string data, sequence<u8> signature, sequence<u8> verifying_key);
+    
+    [Throws=CryptoError]
+    sequence<u8> derive_verifying_key_from_secret(sequence<u8> identity_secret_key);
 
     // Traffic Protection Functions
     sequence<u8> generate_dummy_message(u64 size);

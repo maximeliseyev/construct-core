@@ -734,6 +734,16 @@ pub fn verify_invite_signature(
     )?)
 }
 
+/// Derive verifying (public) key from identity secret key
+/// Used for debugging signature verification issues.
+pub fn derive_verifying_key_from_secret(
+    identity_secret_key: Vec<u8>,
+) -> Result<Vec<u8>, CryptoError> {
+    Ok(invite_crypto::derive_verifying_key_from_secret(
+        &identity_secret_key,
+    )?)
+}
+
 // ============================================================================
 // Traffic Protection Bindings
 // ============================================================================
