@@ -1,4 +1,31 @@
-namespace construct_core {};
+namespace construct_core {
+    // Device ID functions
+    string derive_device_id(sequence<u8> identity_public_key);
+    string format_federated_id(string device_id, string server_hostname);
+    
+    // Proof of Work functions
+    PowSolution compute_pow(string challenge, u32 difficulty);
+    boolean verify_pow(string challenge, PowSolution solution, u32 required_difficulty);
+};
+
+// ============================================================================
+// Device-Based Authentication
+// ============================================================================
+
+dictionary PowChallenge {
+    string challenge;
+    u32 difficulty;
+    i64 expires_at;
+};
+
+dictionary PowSolution {
+    u64 nonce;
+    string hash;
+};
+
+// ============================================================================
+// Registration & Key Bundles
+// ============================================================================
 
 dictionary RegistrationBundleJson {
     string identity_public;

@@ -59,6 +59,10 @@ impl From<crate::error::CryptoError> for CryptoError {
     }
 }
 
+// Re-export PoW types from pow module (for UniFFI UDL)
+// Note: We use UDL definition, not derive macro
+pub use crate::pow::{PowChallenge, PowSolution};
+
 // Registration bundle as JSON - matches UDL
 // Note: We use UDL definition, not derive macro
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1100,7 +1104,7 @@ mod tests {
             "Encryption should fail when session doesn't exist"
         );
         match result {
-            Err(CryptoError::EncryptionFailed) => {} // Expected
+            Err(CryptoError::EncryptionFailed { .. }) => {} // Expected
             _ => panic!("Should return EncryptionFailed error"),
         }
     }
@@ -1336,4 +1340,36 @@ mod tests {
         let (_session_id, decrypted1) = result.unwrap();
         assert_eq!(decrypted1, plaintext1);
     }
+}
+
+// ============================================================================
+// Device-Based Authentication (PoW + Device ID)
+// ============================================================================
+
+/// Compute Argon2id-based Proof of Work
+/// UniFFI wrapper - accepts owned String instead of &str
+pub fn compute_pow(challenge: String, difficulty: u32) -> PowSolution {
+    crate::pow::compute_pow(&challenge, difficulty)
+}
+
+/// Verify PoW solution (server-side)  
+/// UniFFI wrapper - accepts owned String and PowSolution
+pub fn verify_pow(
+    challenge: String,
+    solution: PowSolution,
+    required_difficulty: u32,
+) -> bool {
+    crate::pow::verify_pow(&challenge, &solution, required_difficulty)
+}
+
+/// Derive device ID from identity public key
+/// UniFFI wrapper - accepts owned Vec<u8> instead of &[u8]
+pub fn derive_device_id(identity_public_key: Vec<u8>) -> String {
+    crate::device_id::derive_device_id(&identity_public_key)
+}
+
+/// Format federated identifier
+/// UniFFI wrapper - accepts owned Strings
+pub fn format_federated_id(device_id: String, server_hostname: String) -> String {
+    crate::device_id::format_federated_id(&device_id, &server_hostname)
 }
