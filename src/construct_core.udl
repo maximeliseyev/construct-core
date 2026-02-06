@@ -5,6 +5,11 @@ namespace construct_core {
     
     // Proof of Work functions
     PowSolution compute_pow(string challenge, u32 difficulty);
+    PowSolution compute_pow_with_progress(
+        string challenge,
+        u32 difficulty,
+        PowProgressCallback? progress_callback
+    );
     boolean verify_pow(string challenge, PowSolution solution, u32 required_difficulty);
 };
 
@@ -21,6 +26,11 @@ dictionary PowChallenge {
 dictionary PowSolution {
     u64 nonce;
     string hash;
+};
+
+[Trait, WithForeign]
+interface PowProgressCallback {
+    void on_progress(u64 current_nonce, u64 attempts, f32 estimated_progress);
 };
 
 // ============================================================================

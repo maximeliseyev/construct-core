@@ -6,6 +6,7 @@ use argon2::{
     Argon2, Params, Version,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// PoW challenge from server
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +21,13 @@ pub struct PowChallenge {
 pub struct PowSolution {
     pub nonce: u64,
     pub hash: String,
+}
+
+/// Callback for PoW progress updates (UniFFI callback interface)
+#[cfg_attr(feature = "ios", uniffi::export(callback_interface))]
+pub trait PowProgressCallback: Send + Sync {
+    /// Called periodically during PoW computation
+    fn on_progress(&self, current_nonce: u64, attempts: u64, estimated_progress: f32);
 }
 
 /// Compute Argon2id-based Proof of Work
@@ -38,10 +46,20 @@ pub struct PowSolution {
 ///
 /// # Example
 /// ```
-/// let solution = compute_pow("server_challenge_xyz", 8);
+/// use construct_core::pow::compute_pow;
+/// let solution = compute_pow("server_challenge_xyz", 2);
 /// println!("Found solution after {} attempts", solution.nonce);
 /// ```
 pub fn compute_pow(challenge: &str, difficulty: u32) -> PowSolution {
+    compute_pow_with_progress(challenge, difficulty, None)
+}
+
+/// Compute PoW with progress callback
+pub fn compute_pow_with_progress(
+    challenge: &str,
+    difficulty: u32,
+    progress_callback: Option<Arc<dyn PowProgressCallback>>,
+) -> PowSolution {
     // Argon2id parameters optimized for mobile devices
     // memory_cost: 32 MB (32768 KiB) - balance between security and UX
     // time_cost: 2 iterations - ~1.5 seconds per attempt on iPhone
@@ -58,8 +76,10 @@ pub fn compute_pow(challenge: &str, difficulty: u32) -> PowSolution {
 
     // Fixed salt for PoW (doesn't need unique salts per user)
     // Using base64-encoded constant for deterministic behavior
-    let salt = SaltString::from_b64("a29uc3RydWN0LnBvdy52MS5zYWx0")
-        .expect("Invalid salt encoding");
+    let salt = SaltString::from_b64("a29uc3RydWN0LnBvdy52MS5zYWx0").expect("Invalid salt encoding");
+
+    const PROGRESS_INTERVAL_ATTEMPTS: u64 = 10;
+    let estimated_max_attempts = estimate_max_attempts(difficulty);
 
     let mut nonce: u64 = 0;
 
@@ -73,17 +93,26 @@ pub fn compute_pow(challenge: &str, difficulty: u32) -> PowSolution {
             .expect("Argon2id hashing failed");
 
         // Extract raw hash bytes and convert to owned Vec
-        let hash_bytes: Vec<u8> = hash_result
-            .hash
-            .unwrap()
-            .as_bytes()
-            .to_vec();
+        let hash_bytes: Vec<u8> = hash_result.hash.unwrap().as_bytes().to_vec();
 
         // Count leading zero bits
         let leading_zeros = count_leading_zero_bits(&hash_bytes);
 
+        let attempts = nonce + 1;
+
+        // Periodic progress update
+        if attempts % PROGRESS_INTERVAL_ATTEMPTS == 0 {
+            if let Some(ref callback) = progress_callback {
+                let progress = estimate_progress(attempts, estimated_max_attempts);
+                callback.on_progress(nonce, attempts, progress);
+            }
+        }
+
         // Check if solution meets difficulty requirement
         if leading_zeros >= difficulty {
+            if let Some(ref callback) = progress_callback {
+                callback.on_progress(nonce, attempts, 1.0);
+            }
             return PowSolution {
                 nonce,
                 hash: hex::encode(&hash_bytes),
@@ -96,6 +125,26 @@ pub fn compute_pow(challenge: &str, difficulty: u32) -> PowSolution {
         if nonce % 100 == 0 {
             std::thread::yield_now();
         }
+    }
+}
+
+fn estimate_max_attempts(difficulty: u32) -> u64 {
+    if difficulty >= 63 {
+        u64::MAX
+    } else {
+        1u64 << difficulty
+    }
+}
+
+fn estimate_progress(attempts: u64, estimated_max_attempts: u64) -> f32 {
+    if estimated_max_attempts == 0 {
+        return 0.0;
+    }
+    let progress = (attempts as f32 / estimated_max_attempts as f32).min(0.95);
+    if progress.is_finite() {
+        progress.max(0.0)
+    } else {
+        0.0
     }
 }
 
@@ -147,7 +196,7 @@ pub fn verify_pow(challenge: &str, solution: &PowSolution, required_difficulty: 
 /// Count leading zero bits in a byte array
 ///
 /// # Example
-/// ```
+/// ```text
 /// count_leading_zero_bits(&[0x00, 0xFF]) == 8   (1 zero byte)
 /// count_leading_zero_bits(&[0x00, 0x00, 0x80]) == 16  (2 zero bytes)
 /// count_leading_zero_bits(&[0x0F, 0xFF]) == 4   (half zero byte)
@@ -237,6 +286,38 @@ mod tests {
         // Should fail for higher difficulty (unlikely to have 8 leading zeros)
         // Note: might randomly pass, but very unlikely
         // assert!(!verify_pow(challenge, &solution, 8));
+    }
+
+    #[test]
+    fn test_compute_pow_with_progress_callback() {
+        use std::sync::{Arc, Mutex};
+
+        struct TestProgressCallback {
+            updates: Arc<Mutex<Vec<f32>>>,
+        }
+
+        impl PowProgressCallback for TestProgressCallback {
+            fn on_progress(&self, _nonce: u64, _attempts: u64, progress: f32) {
+                self.updates.lock().unwrap().push(progress);
+            }
+        }
+
+        let updates = Arc::new(Mutex::new(Vec::new()));
+        let callback = TestProgressCallback {
+            updates: updates.clone(),
+        };
+
+        let solution =
+            compute_pow_with_progress("test_challenge_progress", 4, Some(Arc::new(callback)));
+
+        assert!(!solution.hash.is_empty());
+
+        let updates = updates.lock().unwrap();
+        assert!(!updates.is_empty(), "Expected progress updates");
+        assert!(
+            updates.last().unwrap() >= &0.95 || (updates.last().unwrap() - 1.0).abs() < 0.05,
+            "Final progress should be near completion"
+        );
     }
 
     #[test]

@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 /// * Hex-encoded device ID (32 characters = 16 bytes)
 ///
 /// # Algorithm
-/// ```
+/// ```text
 /// device_id = hex(SHA256(identity_public_key)[0..16])
 /// ```
 ///
@@ -24,6 +24,7 @@ use sha2::{Digest, Sha256};
 ///
 /// # Example
 /// ```
+/// use construct_core::device_id::derive_device_id;
 /// let public_key = [0u8; 32]; // Ed25519 public key
 /// let device_id = derive_device_id(&public_key);
 /// assert_eq!(device_id.len(), 32); // 16 bytes * 2 hex chars
@@ -55,6 +56,7 @@ pub fn derive_device_id(identity_public_key: &[u8]) -> String {
 ///
 /// # Example
 /// ```
+/// use construct_core::device_id::format_federated_id;
 /// let device_id = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6";
 /// let hostname = "ams.konstruct.cc";
 /// let federated = format_federated_id(&device_id, hostname);
@@ -75,6 +77,7 @@ pub fn format_federated_id(device_id: &str, server_hostname: &str) -> String {
 ///
 /// # Example
 /// ```
+/// use construct_core::device_id::parse_federated_id;
 /// let result = parse_federated_id("abc123@server.com");
 /// assert_eq!(result, Some(("abc123".to_string(), "server.com".to_string())));
 /// ```

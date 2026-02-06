@@ -61,7 +61,7 @@ impl From<crate::error::CryptoError> for CryptoError {
 
 // Re-export PoW types from pow module (for UniFFI UDL)
 // Note: We use UDL definition, not derive macro
-pub use crate::pow::{PowChallenge, PowSolution};
+pub use crate::pow::{PowChallenge, PowProgressCallback, PowSolution};
 
 // Registration bundle as JSON - matches UDL
 // Note: We use UDL definition, not derive macro
@@ -1352,13 +1352,19 @@ pub fn compute_pow(challenge: String, difficulty: u32) -> PowSolution {
     crate::pow::compute_pow(&challenge, difficulty)
 }
 
+/// Compute PoW with progress callback
+/// UniFFI wrapper - accepts owned String instead of &str
+pub fn compute_pow_with_progress(
+    challenge: String,
+    difficulty: u32,
+    progress_callback: Option<Arc<dyn PowProgressCallback>>,
+) -> PowSolution {
+    crate::pow::compute_pow_with_progress(&challenge, difficulty, progress_callback)
+}
+
 /// Verify PoW solution (server-side)  
 /// UniFFI wrapper - accepts owned String and PowSolution
-pub fn verify_pow(
-    challenge: String,
-    solution: PowSolution,
-    required_difficulty: u32,
-) -> bool {
+pub fn verify_pow(challenge: String, solution: PowSolution, required_difficulty: u32) -> bool {
     crate::pow::verify_pow(&challenge, &solution, required_difficulty)
 }
 
