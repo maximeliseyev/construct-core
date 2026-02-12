@@ -145,7 +145,9 @@ impl<P: CryptoProvider> SecureMessaging<P> for DoubleRatchetSession<P> {
         );
 
         // Convert root_key bytes to P::AeadKey
-        let root_key_vec = P::hkdf_derive_key(b"", root_key, b"InitialRootKey", 32)
+        // ✅ SECURITY: Use dedicated salt for Double Ratchet (different from X3DH)
+        let salt = [0xFE_u8; 32];
+        let root_key_vec = P::hkdf_derive_key(&salt, root_key, b"InitialRootKey", 32)
             .map_err(|e| format!("Failed to derive root key: {}", e))?;
         let root_key_val = Self::bytes_to_aead_key(&root_key_vec)?;
 
@@ -220,7 +222,9 @@ impl<P: CryptoProvider> SecureMessaging<P> for DoubleRatchetSession<P> {
         );
 
         // Convert root_key bytes to P::AeadKey
-        let root_key_vec = P::hkdf_derive_key(b"", root_key, b"InitialRootKey", 32)
+        // ✅ SECURITY: Use dedicated salt for Double Ratchet (different from X3DH)
+        let salt = [0xFE_u8; 32];
+        let root_key_vec = P::hkdf_derive_key(&salt, root_key, b"InitialRootKey", 32)
             .map_err(|e| format!("Failed to derive root key: {}", e))?;
         let mut root_key_val = Self::bytes_to_aead_key(&root_key_vec)?;
 

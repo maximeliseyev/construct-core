@@ -128,7 +128,10 @@ pub struct InviteSignature {
 impl ClassicCryptoCore {
     /// Export registration bundle as JSON string
     pub fn export_registration_bundle_json(&self) -> Result<String, CryptoError> {
-        let client = self.inner.lock().unwrap();
+        let client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // TODO(ARCHITECTURE): Обходной путь для экспорта существующих ключей
         // См. подробное описание: packages/core/ARCHITECTURE_TODOS.md
@@ -180,7 +183,10 @@ impl ClassicCryptoCore {
     /// Sign BundleData JSON string with Ed25519 signing key
     /// This is used for creating the signature in UploadableKeyBundle
     pub fn sign_bundle_data(&self, bundle_data_json: Vec<u8>) -> Result<String, CryptoError> {
-        let client = self.inner.lock().unwrap();
+        let client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Sign the BundleData JSON bytes
         let signature = client
@@ -196,7 +202,10 @@ impl ClassicCryptoCore {
     /// Export private keys as JSON string for persistence
     /// SECURITY: Only call this method to store keys in secure storage (Keychain)
     pub fn export_private_keys_json(&self) -> Result<String, CryptoError> {
-        let client = self.inner.lock().unwrap();
+        let client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Get private keys from key manager
         let identity_secret = client
@@ -243,7 +252,10 @@ impl ClassicCryptoCore {
     /// The returned JSON contains sensitive cryptographic material (chain keys, DH private keys).
     /// Store only in secure storage like iOS Keychain with kSecAttrAccessibleWhenUnlockedThisDeviceOnly.
     pub fn export_session_json(&self, contact_id: String) -> Result<String, CryptoError> {
-        let client = self.inner.lock().unwrap();
+        let client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Get session from HashMap
         let session = client
@@ -279,7 +291,10 @@ impl ClassicCryptoCore {
     ) -> Result<String, CryptoError> {
         use crate::crypto::messaging::double_ratchet::{DoubleRatchetSession, SerializableSession};
 
-        let mut client = self.inner.lock().unwrap();
+        let mut client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Parse JSON
         let serializable: SerializableSession =
@@ -303,7 +318,10 @@ impl ClassicCryptoCore {
     /// # Returns
     /// Vector of contact IDs that have active sessions
     pub fn get_all_session_contact_ids(&self) -> Vec<String> {
-        let client = self.inner.lock().unwrap();
+        let client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         client.active_contacts()
     }
 
@@ -339,7 +357,10 @@ impl ClassicCryptoCore {
             "Initializing session (sender side)"
         );
 
-        let mut client = self.inner.lock().unwrap();
+        let mut client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Log local keys for debugging (sender side)
         let local_bundle = client
@@ -466,7 +487,10 @@ impl ClassicCryptoCore {
             "Initializing receiving session (receiver side)"
         );
 
-        let mut client = self.inner.lock().unwrap();
+        let mut client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Log local keys for debugging
         let local_bundle = client
@@ -531,7 +555,10 @@ impl ClassicCryptoCore {
         session_id: String,
         plaintext: String,
     ) -> Result<EncryptedMessageComponents, CryptoError> {
-        let mut client = self.inner.lock().unwrap();
+        let mut client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Note: session_id from Swift is actually contact_id in our new API
         let contact_id = &session_id;
@@ -611,7 +638,10 @@ impl ClassicCryptoCore {
         // Note: session_id from Swift is actually contact_id in our new API
         let contact_id = &session_id;
 
-        let mut client = self.inner.lock().unwrap();
+        let mut client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let plaintext_bytes = client
             .decrypt_message(contact_id, &encrypted_message)
             .map_err(|e| {
@@ -634,7 +664,10 @@ impl ClassicCryptoCore {
 
     /// Deletes a session for a contact, allowing a new one to be created.
     pub fn remove_session(&self, contact_id: String) -> bool {
-        let mut client = self.inner.lock().unwrap();
+        let mut client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         client.remove_session(&contact_id)
     }
 }
@@ -841,45 +874,69 @@ impl TrafficProtectionManager {
     ///
     /// Should be called from iOS/Android when battery level changes.
     pub fn update_battery_level(&self, level: f32) {
-        self.inner.lock().unwrap().update_battery_level(level);
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .update_battery_level(level);
     }
 
     /// Record that a real message was sent (for coalescing)
     pub fn record_real_message_sent(&self) {
-        self.inner.lock().unwrap().record_real_message_sent();
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .record_real_message_sent();
     }
 
     /// Check if a dummy message should be sent now
     pub fn should_send_dummy(&self) -> bool {
-        self.inner.lock().unwrap().should_send_dummy()
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .should_send_dummy()
     }
 
     /// Generate a dummy message
     ///
     /// Call this after should_send_dummy() returns true.
     pub fn generate_dummy(&self) -> Vec<u8> {
-        self.inner.lock().unwrap().generate_dummy()
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .generate_dummy()
     }
 
     /// Get current energy metrics
     pub fn get_metrics(&self) -> EnergyMetrics {
-        let manager = self.inner.lock().unwrap();
+        let manager = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         manager.metrics().into()
     }
 
     /// Reset metrics
     pub fn reset_metrics(&self) {
-        self.inner.lock().unwrap().reset_metrics();
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .reset_metrics();
     }
 
     /// Get current adaptive interval (for debugging/monitoring)
     pub fn current_interval_ms(&self) -> u64 {
-        self.inner.lock().unwrap().current_interval_ms()
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .current_interval_ms()
     }
 
     /// Check if currently active (enabled and battery sufficient)
     pub fn is_currently_active(&self) -> bool {
-        self.inner.lock().unwrap().is_currently_active()
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_currently_active()
     }
 }
 

@@ -299,49 +299,21 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
                         );
                     }
                     Err(e2) => {
-                        // Попытка 3: Может быть подпись была создана для identity_public? (очень старый формат)
-                        debug!(
+                        // ❌ SECURITY: Третий fallback (identity_public) удален - он позволял key substitution attack
+                        // Подробнее: SECURITY_AUDIT.md #5 - signature confusion attack
+                        error!(
                             target: "crypto::x3dh",
+                            new_format_error = %e1,
+                            old_format_error = %e2,
                             suite_id = %remote_bundle.suite_id,
-                            error = %e2,
-                            "Old format also failed, trying identity_public as fallback (very old format)"
+                            "Signature verification failed (both new and old formats). User needs to re-register."
                         );
-                        let identity_result = P::verify(
-                            &remote_verifying_key,
-                            remote_bundle.identity_public.as_ref(),
-                            &remote_bundle.signature,
-                        );
-
-                        match identity_result {
-                            Ok(()) => {
-                                debug!(
-                                    target: "crypto::x3dh",
-                                    suite_id = %remote_bundle.suite_id,
-                                    "Signature verified for identity_public (very old format)"
-                                );
-                            }
-                            Err(e3) => {
-                                error!(
-                                    target: "crypto::x3dh",
-                                    new_format_error = %e1,
-                                    old_format_error = %e2,
-                                    very_old_format_error = %e3,
-                                    suite_id = %remote_bundle.suite_id,
-                                    "Signature verification failed (all formats)"
-                                );
-                                return Err(format!(
-                                    "Signature verification failed: {}. The user may need to re-register with the current code version.",
-                                    e2
-                                ));
-                            }
-                        }
+                        return Err(format!(
+                            "Invalid signed prekey signature: {}. The user may need to re-register with the current code version.",
+                            e2
+                        ));
                     }
                 }
-                debug!(
-                    target: "crypto::x3dh",
-                    suite_id = %remote_bundle.suite_id,
-                    "Signature verified successfully (old format, backward compatibility)"
-                );
             }
         }
 
@@ -379,8 +351,11 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
 
         // 4. Derive root key using HKDF
         debug!(target: "crypto::x3dh", "Step 3: Deriving root key with HKDF");
+        // ✅ SECURITY: Use 0xFF salt per Signal X3DH specification (section 2.2)
+        // Ref: SECURITY_AUDIT.md #7 - Empty HKDF salt weakens preimage resistance
+        let salt = [0xFF_u8; 32];
         let root_key = P::hkdf_derive_key(
-            b"", // no salt
+            &salt,
             &combined_dh,
             b"X3DH Root Key",
             32, // 32 bytes root key
@@ -446,7 +421,9 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
 
         // Derive root key using HKDF
         debug!(target: "crypto::x3dh", "Deriving root key with HKDF");
-        let root_key = P::hkdf_derive_key(b"", &combined_dh, b"X3DH Root Key", 32)
+        // ✅ SECURITY: Use 0xFF salt per Signal X3DH specification (section 2.2)
+        let salt = [0xFF_u8; 32];
+        let root_key = P::hkdf_derive_key(&salt, &combined_dh, b"X3DH Root Key", 32)
             .map_err(|e| format!("HKDF derivation failed: {}", e))?;
 
         debug!(
