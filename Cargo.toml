@@ -47,8 +47,9 @@ thiserror = "2"
 anyhow = "1.0"
 tracing = "0.1"
 uuid = { version = "1.0", features = ["v4", "serde"] }
-time = { version = "0.3", features = ["formatting", "parsing"] }
+time = { version = "0.3.47", features = ["formatting", "parsing"] }
 hex = "0.4"
+bytes = "1.11.1"  # Direct dependency to ensure security fix for RUSTSEC-2026-0007
 
 # Криптография
 x25519-dalek = { version = "2.0", features = ["reusable_secrets", "static_secrets"] }
