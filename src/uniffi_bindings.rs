@@ -248,9 +248,14 @@ impl ClassicCryptoCore {
     /// # Returns
     /// JSON string containing serialized session state
     ///
-    /// # Security
-    /// The returned JSON contains sensitive cryptographic material (chain keys, DH private keys).
-    /// Store only in secure storage like iOS Keychain with kSecAttrAccessibleWhenUnlockedThisDeviceOnly.
+    /// # Security - CRITICAL
+    ///
+    /// ⚠️ **UNENCRYPTED cryptographic material**: root key, chain keys, DH private key.
+    ///
+    /// **MUST** store in: iOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) or IndexedDB.
+    /// **NEVER** use: UserDefaults, localStorage, or unencrypted files.
+    ///
+    /// Ref: SECURITY_AUDIT.md #13 - Sessions rely on platform storage encryption
     pub fn export_session_json(&self, contact_id: String) -> Result<String, CryptoError> {
         let client = self
             .inner

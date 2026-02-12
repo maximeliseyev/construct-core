@@ -10,7 +10,6 @@ use crate::protocol::rest_transport::{AuthTokens, RestClient};
 use crate::storage::traits::SecureStorage;
 use crate::utils::error::{ConstructError, Result};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Token Manager для управления аутентификацией
 ///
@@ -180,22 +179,14 @@ impl<S: SecureStorage> TokenManager<S> {
 
     /// Проверить истек ли access token
     fn is_expired(&self, tokens: &AuthTokens) -> bool {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
-
+        let now = crate::utils::time::current_timestamp();
         tokens.expires_at <= now
     }
 
     /// Проверить нужно ли обновить токен
     /// (истекает в течение refresh_threshold_secs)
     fn needs_refresh(&self, tokens: &AuthTokens) -> bool {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
-
+        let now = crate::utils::time::current_timestamp();
         // Если токен истекает через меньше чем threshold секунд
         (tokens.expires_at - now) < self.refresh_threshold_secs
     }

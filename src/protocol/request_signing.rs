@@ -10,7 +10,6 @@ use crate::utils::error::Result;
 use base64::Engine;
 use ed25519_dalek::{Signature, Signer, SigningKey};
 use sha2::{Digest, Sha256};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Подписать HTTP запрос
 ///
@@ -29,10 +28,7 @@ pub fn sign_request(
     signing_key: &SigningKey,
 ) -> Result<(String, String, i64)> {
     // 1. Получить timestamp
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let timestamp = crate::utils::time::current_timestamp();
 
     // 2. Вычислить SHA256 хэш body
     let mut hasher = Sha256::new();

@@ -111,15 +111,18 @@ pub fn unpad_message(padded: &[u8]) -> Result<Vec<u8>, PaddingError> {
     }
 
     // Verify all padding bytes are correct (constant-time comparison)
+    // ✅ SECURITY: Use constant-time validation to prevent timing attacks
+    // Ref: SECURITY_AUDIT.md #12 - Non-constant-time padding check
     let start = padded.len() - padding_len;
     let expected_byte = padding_len as u8;
 
-    let mut valid = true;
+    // XOR-based constant-time comparison - accumulator stays 0 only if all bytes match
+    let mut diff: u8 = 0;
     for &byte in &padded[start..] {
-        valid &= byte == expected_byte;
+        diff |= byte ^ expected_byte;
     }
 
-    if !valid {
+    if diff != 0 {
         return Err(PaddingError::InvalidPadding);
     }
 

@@ -442,10 +442,7 @@ impl<P: CryptoProvider> SecureMessaging<P> for DoubleRatchetSession<P> {
                 return self.decrypt_with_key(&msg_key, encrypted);
             } else {
                 // Store skipped key with timestamp
-                let timestamp = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs();
+                let timestamp = crate::utils::time::now();
 
                 self.skipped_message_keys
                     .insert(self.receiving_chain_length, msg_key);
@@ -476,11 +473,7 @@ impl<P: CryptoProvider> SecureMessaging<P> for DoubleRatchetSession<P> {
     fn cleanup_old_skipped_keys(&mut self, max_age_seconds: i64) {
         use tracing::debug;
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
+        let now = crate::utils::time::now();
         let initial_count = self.skipped_message_keys.len();
 
         // Удаляем старые ключи
@@ -701,6 +694,44 @@ impl<P: CryptoProvider> DoubleRatchetSession<P> {
 }
 
 /// Serializable session format for storage
+///
+/// # Security Considerations
+///
+/// ⚠️ **CRITICAL**: This structure contains sensitive cryptographic material:
+/// - `root_key`: Root key for DH ratchet key derivation
+/// - `sending_chain_key` / `receiving_chain_key`: Current chain keys
+/// - `dh_ratchet_private`: Private DH ratchet key
+/// - `skipped_message_keys`: Keys for out-of-order messages
+///
+/// **SECURITY_AUDIT.md #13**: Sessions stored in plaintext
+///
+/// ## Defense-in-Depth Strategy:
+///
+/// 1. **Platform-Level Encryption** (Primary Defense):
+///    - iOS: MUST use Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
+///    - Web: MUST use IndexedDB (origin-isolated, browser-encrypted)
+///    - Never store in UserDefaults, localStorage, or unencrypted files
+///
+/// 2. **Application-Level Encryption** (Optional, for paranoid mode):
+///    - Derive session encryption key from device identity_key
+///    - Encrypt SerializableSession before JSON serialization
+///    - Note: Creates key management complexity in device-based model
+///
+/// 3. **Forward Secrecy Preservation**:
+///    - Even if serialized session is compromised, past messages remain secure
+///    - Only future messages (until next DH ratchet) could be decrypted
+///    - Regular session rotation mitigates this window
+///
+/// ## Current Implementation:
+///
+/// Relies on platform secure storage (Keychain/IndexedDB encryption).
+/// This is acceptable for device-based registration model where:
+/// - No master password exists for additional encryption layer
+/// - Platform storage provides hardware-backed encryption (iOS Secure Enclave)
+/// - Origin isolation prevents cross-app access (Web)
+///
+/// If additional encryption is needed, implement in `export_session_json()`
+/// before JSON conversion, not here (to keep serialization format clean).
 #[derive(Serialize, Deserialize)]
 pub struct SerializableSession {
     version: u16, // Protocol version for future compatibility
