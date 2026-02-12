@@ -1357,7 +1357,7 @@ pub fn compute_pow(challenge: String, difficulty: u32) -> PowSolution {
 pub fn compute_pow_with_progress(
     challenge: String,
     difficulty: u32,
-    progress_callback: Option<Arc<dyn PowProgressCallback>>,
+    progress_callback: Option<Box<dyn PowProgressCallback>>,
 ) -> PowSolution {
     crate::pow::compute_pow_with_progress(&challenge, difficulty, progress_callback)
 }

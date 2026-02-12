@@ -167,11 +167,15 @@ where
     ) -> Result<String> {
         let public_bundle: X3DHPublicKeyBundle = remote_bundle.clone().into();
 
-        // Extract remote identity and ephemeral key
-        let remote_identity = P::kem_public_key_from_bytes(public_bundle.identity_public.clone());
+        // Конвертируем concrete X3DHPublicKeyBundle в generic H::RegistrationBundle через serde_json
+        let generic_bundle: <X3DHProtocol<P> as crate::crypto::handshake::KeyAgreement<P>>::RegistrationBundle =
+            serde_json::from_value(serde_json::to_value(&public_bundle)
+                .map_err(|e| ConstructError::Crypto(crate::error::CryptoError::SerializationError(e.to_string())))?)
+                .map_err(|e| ConstructError::Crypto(crate::error::CryptoError::DeserializationError(e.to_string())))?;
 
         self.client
-            .init_receiving_session(contact_id, &remote_identity, first_message)
+            .init_receiving_session(contact_id, &generic_bundle, first_message)
+            .map(|(session_id, _plaintext)| session_id)
             .map_err(|e| ConstructError::Crypto(crate::error::CryptoError::Other(e)))
     }
 

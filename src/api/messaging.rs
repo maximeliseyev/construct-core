@@ -131,10 +131,18 @@ where
     use crate::crypto::handshake::x3dh::X3DHPublicKeyBundle;
     let public_bundle: X3DHPublicKeyBundle = remote_bundle.clone().into();
     let ratchet_msg: EncryptedRatchetMessage = first_encrypted_msg.clone().into();
-    let remote_identity = P::kem_public_key_from_bytes(public_bundle.identity_public);
+
+    // Конвертируем concrete X3DHPublicKeyBundle в generic H::RegistrationBundle через serde_json
+    let generic_bundle: <X3DHProtocol<P> as KeyAgreement<P>>::RegistrationBundle =
+        serde_json::from_value(
+            serde_json::to_value(&public_bundle)
+                .map_err(|e| ConstructError::SerializationError(e.to_string()))?,
+        )
+        .map_err(|e| ConstructError::SerializationError(e.to_string()))?;
 
     client
-        .init_receiving_session(contact_id, &remote_identity, &ratchet_msg)
+        .init_receiving_session(contact_id, &generic_bundle, &ratchet_msg)
+        .map(|(session_id, _plaintext)| session_id)
         .map_err(ConstructError::SessionError)
 }
 

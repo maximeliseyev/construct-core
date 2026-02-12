@@ -4,14 +4,16 @@
 use crate::crypto::CryptoProvider;
 use crate::crypto::SuiteID;
 use crate::utils::error::{ConstructError, Result};
-use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use ed25519_dalek::{SigningKey, VerifyingKey};
+use rand::RngCore;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use x25519_dalek::{PublicKey, StaticSecret};
+use zeroize::{Zeroize, Zeroizing};
 
 /// Build prologue for X3DH signature (как в Noise Protocol)
 /// Prologue включает протокол и suite ID для предотвращения key substitution attacks
-fn build_prologue(suite_id: SuiteID) -> Vec<u8> {
+pub fn build_prologue(suite_id: SuiteID) -> Vec<u8> {
     let protocol_name = b"X3DH";
     let suite_id_bytes = suite_id.as_u16().to_le_bytes();
     let mut prologue = Vec::with_capacity(protocol_name.len() + suite_id_bytes.len());
@@ -21,44 +23,70 @@ fn build_prologue(suite_id: SuiteID) -> Vec<u8> {
 }
 
 /// Пара ключей X25519
-#[derive(Clone)]
+#[derive(Clone, Zeroize)]
 pub struct X25519KeyPair {
-    pub secret: StaticSecret,
-    pub public: PublicKey,
+    pub private_key: Zeroizing<[u8; 32]>,
+    pub public_key: [u8; 32],
 }
 
 impl X25519KeyPair {
     pub fn generate() -> Self {
-        let secret = StaticSecret::random_from_rng(rand::rngs::OsRng);
-        let public = PublicKey::from(&secret);
-        Self { secret, public }
+        let mut bytes = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut bytes);
+        let private_key = Zeroizing::new(bytes);
+        let arr = *private_key;
+        let secret = StaticSecret::from(arr);
+        let public_key = PublicKey::from(&secret).to_bytes();
+        Self {
+            private_key,
+            public_key,
+        }
     }
 
     pub fn from_secret(secret: StaticSecret) -> Self {
-        let public = PublicKey::from(&secret);
-        Self { secret, public }
+        let public_key = PublicKey::from(&secret).to_bytes();
+        let private_key = Zeroizing::new(secret.to_bytes());
+        Self {
+            private_key,
+            public_key,
+        }
+    }
+
+    pub fn get_secret(&self) -> StaticSecret {
+        let arr = *self.private_key;
+        StaticSecret::from(arr)
+    }
+
+    pub fn get_public(&self) -> PublicKey {
+        PublicKey::from(self.public_key)
     }
 }
 
 /// Пара ключей Ed25519 для подписи
-#[derive(Clone)]
+#[derive(Clone, Zeroize)]
 pub struct Ed25519KeyPair {
-    pub signing_key: SigningKey,
-    pub verifying_key: VerifyingKey,
+    pub private_key: Zeroizing<[u8; 32]>,
+    pub public_key: [u8; 32],
 }
 
 impl Ed25519KeyPair {
     pub fn generate() -> Self {
         let signing_key = SigningKey::generate(&mut rand::rngs::OsRng);
         let verifying_key = signing_key.verifying_key();
+        let private_key = Zeroizing::new(signing_key.to_bytes());
+        let public_key = verifying_key.to_bytes();
         Self {
-            signing_key,
-            verifying_key,
+            private_key,
+            public_key,
         }
     }
 
-    pub fn sign(&self, message: &[u8]) -> Signature {
-        self.signing_key.sign(message)
+    pub fn get_signing_key(&self) -> SigningKey {
+        SigningKey::from_bytes(&self.private_key)
+    }
+
+    pub fn get_verifying_key(&self) -> VerifyingKey {
+        VerifyingKey::from_bytes(&self.public_key).unwrap()
     }
 }
 
@@ -316,6 +344,33 @@ impl<P: CryptoProvider> KeyManager<P> {
         })
     }
 
+    /// Экспорт device registration bundle для device-based регистрации
+    ///
+    /// Возвращает X3DHRegistrationBundle, содержащий ТОЛЬКО публичные данные
+    /// для безопасного обмена ключами между устройствами.
+    ///
+    /// # Безопасность
+    ///
+    /// Этот метод гарантирует, что:
+    /// - Возвращаются только публичные ключи
+    /// - Приватные ключи никогда не покидают KeyManager
+    /// - Bundle можно безопасно отправлять по сети
+    pub fn export_device_registration_bundle(
+        &self,
+    ) -> Result<crate::crypto::handshake::x3dh::X3DHRegistrationBundle> {
+        let identity_public = self.identity_public_key()?.as_ref().to_vec();
+        let verifying_key = self.verifying_key()?.as_ref().to_vec();
+        let prekey = self.current_signed_prekey()?;
+
+        Ok(crate::crypto::handshake::x3dh::X3DHRegistrationBundle {
+            identity_public,
+            signed_prekey_public: prekey.key_pair.1.as_ref().to_vec(),
+            signature: prekey.signature.clone(),
+            verifying_key,
+            suite_id: SuiteID::from_u16_unchecked(P::suite_id()),
+        })
+    }
+
     /// Подписать данные
     pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>> {
         let (signing_key, _) = self.signing_key.as_ref().ok_or_else(|| {
@@ -345,5 +400,30 @@ impl<P: CryptoProvider> KeyManager<P> {
 impl<P: CryptoProvider> Default for KeyManager<P> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_x25519_keypair_zeroize() {
+        let mut pair = X25519KeyPair::generate();
+        let original_secret = *pair.private_key;
+        pair.zeroize();
+        let zeroed_secret = *pair.private_key;
+        assert_ne!(original_secret, zeroed_secret);
+        assert!(zeroed_secret.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_ed25519_keypair_zeroize() {
+        let mut pair = Ed25519KeyPair::generate();
+        let original_secret = *pair.private_key;
+        pair.zeroize();
+        let zeroed_secret = *pair.private_key;
+        assert_ne!(original_secret, zeroed_secret);
+        assert!(zeroed_secret.iter().all(|&b| b == 0));
     }
 }

@@ -329,7 +329,10 @@ impl<P: CryptoProvider> KeyAgreement<P> for X3DHProtocol<P> {
                                     suite_id = %remote_bundle.suite_id,
                                     "Signature verification failed (all formats)"
                                 );
-                                return Err(format!("Signature verification failed: {}. The user may need to re-register with the current code version.", e2));
+                                return Err(format!(
+                                    "Signature verification failed: {}. The user may need to re-register with the current code version.",
+                                    e2
+                                ));
                             }
                         }
                     }

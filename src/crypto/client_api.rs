@@ -141,7 +141,7 @@ where
         })
     }
 
-    /// Получить registration bundle для отправки на сервер
+    /// Получить registration bundle для отправки на сервер (device-based регистрация)
     ///
     /// Возвращает публичные ключи клиента для регистрации:
     /// - Identity Public Key
@@ -149,43 +149,36 @@ where
     /// - Signature над Signed Prekey
     /// - Verifying Key
     ///
+    /// **ВАЖНО для device-based модели:**
+    /// - Bundle используется для безопасного обмена ключами между устройствами
+    /// - Содержит ТОЛЬКО публичные данные из существующих ключей
+    /// - Приватные ключи никогда не покидают устройство
+    ///
     /// # Пример
     ///
     /// ```rust,ignore
     /// let bundle = client.get_registration_bundle()?;
-    /// send_to_server(bundle);
+    /// send_to_server(bundle); // Для регистрации устройства
     /// ```
     ///
-    /// # ⚠️ ВАЖНО: Этот метод имеет архитектурную проблему
+    /// # ✅ ИСПРАВЛЕНО: Теперь использует существующие ключи
     ///
-    /// TODO(ARCHITECTURE): Этот метод генерирует НОВЫЕ ключи вместо экспорта существующих!
-    /// См. полное описание проблемы и решения: packages/core/ARCHITECTURE_TODOS.md
-    ///
-    /// ПРОБЛЕМА:
-    /// - Вызывает статический метод H::generate_registration_bundle()
-    /// - Генерирует совершенно новые ключи каждый раз
-    /// - НЕ использует ключи из self.key_manager
-    /// - Это означает, что bundle не соответствует ключам клиента!
-    ///
-    /// ПОЧЕМУ ТАК СДЕЛАНО:
-    /// - KeyManager<P> не знает о generic типе H (handshake protocol)
-    /// - KeyManager::export_registration_bundle() возвращает конкретный X3DHPublicKeyBundle
-    /// - Но этот метод должен возвращать generic H::RegistrationBundle
-    /// - Type mismatch делает невозможным использование KeyManager напрямую
-    ///
-    /// КАК ИСПОЛЬЗОВАТЬ СЕЙЧАС:
-    /// - ⚠️ НЕ используйте этот метод для реального экспорта ключей!
-    /// - Используйте напрямую: client.key_manager().export_registration_bundle()
-    /// - Смотрите uniffi_bindings.rs:119 для примера
-    ///
-    /// КАК ИСПРАВИТЬ:
-    /// 1. Сделать KeyManager<P, H: KeyAgreement<P>> - generic по handshake protocol
-    /// 2. export_registration_bundle(&self) -> Result<H::RegistrationBundle>
-    /// 3. Тогда этот метод сможет корректно вызывать key_manager.export_registration_bundle()
-    ///
-    /// Смотрите также: uniffi_bindings.rs:93-118 для полного описания проблемы и решений
+    /// Метод теперь корректно экспортирует ключи из self.key_manager
+    /// вместо генерации новых, что было критической уязвимостью.
     pub fn get_registration_bundle(&self) -> Result<H::RegistrationBundle, String> {
-        H::generate_registration_bundle()
+        // Экспортируем существующие публичные ключи из key_manager
+        let public_bundle = self
+            .key_manager
+            .export_device_registration_bundle()
+            .map_err(|e| format!("Failed to export registration bundle: {:?}", e))?;
+
+        // Преобразуем через сериализацию/десериализацию (безопасно и generic)
+        let json = serde_json::to_string(&public_bundle)
+            .map_err(|e| format!("Failed to serialize bundle: {}", e))?;
+        let registration_bundle: H::RegistrationBundle = serde_json::from_str(&json)
+            .map_err(|e| format!("Failed to deserialize bundle: {}", e))?;
+
+        Ok(registration_bundle)
     }
 
     /// Инициировать сессию с контактом (Alice)
@@ -276,21 +269,39 @@ where
     /// 3. Создаёт Session::init_as_responder()
     /// 4. Сохраняет сессию
     ///
-    /// # Параметры
+    /// # Параметры (device-based модель)
     ///
-    /// - `contact_id`: Идентификатор контакта (Alice)
-    /// - `remote_identity`: Alice's identity public key (от сервера)
+    /// - `contact_id`: Идентификатор контакта/устройства (Alice)
+    /// - `initiator_bundle`: Регистрационный bundle инициатора для верификации подписи
     /// - `first_message`: Первое зашифрованное сообщение от Alice
     ///
     /// # Возвращает
     ///
-    /// Session ID созданной сессии
+    /// Кортеж: (session_id, расшифрованное первое сообщение)
+    ///
+    /// # Безопасность (device-based)
+    ///
+    /// ✅ **ИСПРАВЛЕНО**: Теперь верифицирует:
+    /// - Подпись signed prekey инициатора
+    /// - Соответствие identity key из bundle
+    /// - Device ID для device-based модели
+    ///
+    /// # Пример
+    ///
+    /// ```rust,ignore
+    /// // Bob получает первое сообщение от Alice
+    /// let (session_id, plaintext) = bob.init_receiving_session(
+    ///     "alice",
+    ///     &alice_bundle,  // Для верификации подписи
+    ///     &first_message,
+    /// )?;
+    /// ```
     pub fn init_receiving_session(
         &mut self,
         contact_id: &str,
-        _remote_identity: &P::KemPublicKey,
-        _first_message: &M::EncryptedMessage,
-    ) -> Result<String, String> {
+        initiator_bundle: &H::RegistrationBundle,
+        first_message: &M::EncryptedMessage,
+    ) -> Result<(String, Vec<u8>), String> {
         use tracing::info;
 
         // Check if session already exists
@@ -304,15 +315,84 @@ where
         info!(
             target: "crypto::client",
             contact_id = %contact_id,
-            "Initializing session as responder"
+            "Initializing session as responder (device-based)"
         );
 
-        // Extract remote ephemeral key from message
-        // Note: This requires M::EncryptedMessage to provide access to dh_public_key
-        // For DoubleRatchetSession, we know it has dh_public_key: [u8; 32]
-        // But we can't access it generically. Let's add a parameter instead.
+        // Извлекаем ephemeral key из первого сообщения
+        // Преобразуем через сериализацию, чтобы получить доступ к dh_public_key
+        let message_json = serde_json::to_string(first_message)
+            .map_err(|e| format!("Failed to serialize message: {}", e))?;
+        let ratchet_msg: crate::crypto::messaging::double_ratchet::EncryptedRatchetMessage =
+            serde_json::from_str(&message_json)
+                .map_err(|e| format!("Failed to deserialize message: {}", e))?;
 
-        Err("init_receiving_session requires remote_ephemeral parameter".to_string())
+        let remote_ephemeral = P::kem_public_key_from_bytes(ratchet_msg.dh_public_key.to_vec());
+
+        // Десериализуем bundle для получения данных
+        let bundle_json = serde_json::to_string(initiator_bundle)
+            .map_err(|e| format!("Failed to serialize bundle: {}", e))?;
+        let bundle_data: crate::crypto::handshake::x3dh::X3DHRegistrationBundle =
+            serde_json::from_str(&bundle_json)
+                .map_err(|e| format!("Failed to deserialize bundle: {}", e))?;
+
+        // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА 1: Верификация подписи signed prekey
+        info!(
+            target: "crypto::client",
+            "Verifying signed prekey signature from initiator"
+        );
+
+        let verifying_key = P::signature_public_key_from_bytes(bundle_data.verifying_key.clone());
+
+        // Собираем данные для верификации с prologue (как при создании)
+        let prologue = crate::crypto::keys::build_prologue(bundle_data.suite_id);
+        let mut message_to_verify =
+            Vec::with_capacity(prologue.len() + bundle_data.signed_prekey_public.len());
+        message_to_verify.extend_from_slice(&prologue);
+        message_to_verify.extend_from_slice(&bundle_data.signed_prekey_public);
+
+        P::verify(&verifying_key, &message_to_verify, &bundle_data.signature)
+            .map_err(|_| "Invalid signed prekey signature from initiator".to_string())?;
+
+        info!(
+            target: "crypto::client",
+            "Signature verification successful"
+        );
+
+        // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА 2: Device ID (для device-based модели)
+        // Вычисляем device_id из identity_public и проверяем соответствие contact_id
+        let derived_device_id = crate::device_id::derive_device_id(&bundle_data.identity_public);
+
+        // В device-based модели contact_id должен соответствовать device_id
+        // Формат может быть: device_id@server или просто device_id
+        let expected_device_id = if contact_id.contains('@') {
+            contact_id.split('@').next().unwrap_or(contact_id)
+        } else {
+            contact_id
+        };
+
+        if derived_device_id != expected_device_id {
+            return Err(format!(
+                "Device ID mismatch: expected {}, got {}",
+                expected_device_id, derived_device_id
+            ));
+        }
+
+        info!(
+            target: "crypto::client",
+            device_id = %derived_device_id,
+            "Device ID verification successful"
+        );
+
+        // Преобразуем identity key из bundle
+        let remote_identity = P::kem_public_key_from_bytes(bundle_data.identity_public);
+
+        // Вызываем рабочую версию с ephemeral key
+        self.init_receiving_session_with_ephemeral(
+            contact_id,
+            &remote_identity,
+            &remote_ephemeral,
+            first_message,
+        )
     }
 
     /// Инициировать receiving сессию с явным ephemeral key (Bob)
@@ -670,5 +750,256 @@ mod tests {
         assert!(alice.remove_session("bob"));
         assert!(!alice.has_session("bob"));
         assert_eq!(alice.active_sessions_count(), 0);
+    }
+
+    #[test]
+    fn test_get_registration_bundle_uses_existing_keys() {
+        use crate::crypto::SuiteID;
+
+        // Создаем клиента с новыми ключами
+        let client = Client::<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >::new()
+        .unwrap();
+
+        // Получаем bundle через key_manager напрямую
+        let direct_bundle = client
+            .key_manager
+            .export_device_registration_bundle()
+            .unwrap();
+
+        // Получаем registration bundle через метод Client
+        let client_bundle = client.get_registration_bundle().unwrap();
+
+        // Проверяем, что bundles идентичны
+        assert_eq!(
+            client_bundle.identity_public, direct_bundle.identity_public,
+            "Identity public key should match"
+        );
+        assert_eq!(
+            client_bundle.verifying_key, direct_bundle.verifying_key,
+            "Verifying key should match"
+        );
+        assert_eq!(
+            client_bundle.signed_prekey_public, direct_bundle.signed_prekey_public,
+            "Signed prekey public should match"
+        );
+        assert_eq!(
+            client_bundle.signature, direct_bundle.signature,
+            "Signature should match"
+        );
+        assert_eq!(
+            client_bundle.suite_id,
+            SuiteID::CLASSIC,
+            "Suite ID should be CLASSIC"
+        );
+    }
+
+    #[test]
+    fn test_get_registration_bundle_only_public_data() {
+        let client = Client::<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >::new()
+        .unwrap();
+
+        // Получаем registration bundle
+        let bundle = client.get_registration_bundle().unwrap();
+
+        // Проверяем, что все поля являются публичными данными (Vec<u8>)
+        // Приватные ключи не должны быть в bundle
+        assert!(
+            !bundle.identity_public.is_empty(),
+            "Identity public key should not be empty"
+        );
+        assert!(
+            !bundle.signed_prekey_public.is_empty(),
+            "Signed prekey public should not be empty"
+        );
+        assert!(
+            !bundle.signature.is_empty(),
+            "Signature should not be empty"
+        );
+        assert!(
+            !bundle.verifying_key.is_empty(),
+            "Verifying key should not be empty"
+        );
+
+        // Проверяем правильность размеров для Classic suite
+        assert_eq!(
+            bundle.identity_public.len(),
+            32,
+            "Identity public key should be 32 bytes"
+        );
+        assert_eq!(
+            bundle.signed_prekey_public.len(),
+            32,
+            "Signed prekey public should be 32 bytes"
+        );
+        assert_eq!(bundle.signature.len(), 64, "Signature should be 64 bytes");
+        assert_eq!(
+            bundle.verifying_key.len(),
+            32,
+            "Verifying key should be 32 bytes"
+        );
+    }
+
+    #[test]
+    fn test_init_receiving_session_with_valid_bundle() {
+        use crate::device_id::derive_device_id;
+
+        // Alice и Bob создают клиентов
+        let mut alice = Client::<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >::new()
+        .unwrap();
+
+        let mut bob = Client::<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >::new()
+        .unwrap();
+
+        // Alice получает bundle Bob-а для инициации сессии
+        let bob_bundle = bob.get_registration_bundle().unwrap();
+        let bob_identity = bob.key_manager.identity_public_key().unwrap().clone();
+        let bob_device_id = derive_device_id(bob_bundle.identity_public.as_ref());
+
+        // Alice инициирует сессию с Bob
+        let bob_bundle_for_init = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle {
+            identity_public: bob_bundle.identity_public.clone(),
+            signed_prekey_public: bob_bundle.signed_prekey_public.clone(),
+            signature: bob_bundle.signature.clone(),
+            verifying_key: bob_bundle.verifying_key.clone(),
+            suite_id: bob_bundle.suite_id,
+        };
+
+        alice
+            .init_session(&bob_device_id, &bob_bundle_for_init, &bob_identity)
+            .unwrap();
+
+        // Alice отправляет первое сообщение
+        let plaintext = b"Hello Bob from Alice!";
+        let first_message = alice.encrypt_message(&bob_device_id, plaintext).unwrap();
+
+        // Alice получает bundle для верификации
+        let alice_bundle = alice.get_registration_bundle().unwrap();
+        let alice_device_id = derive_device_id(alice_bundle.identity_public.as_ref());
+
+        // ✅ Bob инициализирует receiving session с верификацией подписи
+        let (session_id, decrypted) = bob
+            .init_receiving_session(&alice_device_id, &alice_bundle, &first_message)
+            .unwrap();
+
+        // Проверяем результаты
+        assert!(bob.has_session(&alice_device_id));
+        assert_eq!(decrypted, plaintext);
+        assert!(!session_id.is_empty());
+    }
+
+    #[test]
+    fn test_init_receiving_session_rejects_invalid_signature() {
+        use crate::device_id::derive_device_id;
+
+        let mut alice = Client::<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >::new()
+        .unwrap();
+
+        let mut bob = Client::<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >::new()
+        .unwrap();
+
+        let bob_bundle = bob.get_registration_bundle().unwrap();
+        let bob_identity = bob.key_manager.identity_public_key().unwrap().clone();
+        let bob_device_id = derive_device_id(bob_bundle.identity_public.as_ref());
+
+        let bob_bundle_for_init = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle {
+            identity_public: bob_bundle.identity_public.clone(),
+            signed_prekey_public: bob_bundle.signed_prekey_public.clone(),
+            signature: bob_bundle.signature.clone(),
+            verifying_key: bob_bundle.verifying_key.clone(),
+            suite_id: bob_bundle.suite_id,
+        };
+
+        alice
+            .init_session(&bob_device_id, &bob_bundle_for_init, &bob_identity)
+            .unwrap();
+
+        let plaintext = b"Hello Bob!";
+        let first_message = alice.encrypt_message(&bob_device_id, plaintext).unwrap();
+
+        // Создаем bundle с невалидной подписью
+        let mut alice_bundle = alice.get_registration_bundle().unwrap();
+        alice_bundle.signature[0] ^= 0xFF; // Портим подпись
+
+        let alice_device_id = derive_device_id(alice_bundle.identity_public.as_ref());
+
+        // ❌ Bob должен отклонить bundle с невалидной подписью
+        let result = bob.init_receiving_session(&alice_device_id, &alice_bundle, &first_message);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("Invalid signed prekey signature"));
+    }
+
+    #[test]
+    fn test_init_receiving_session_rejects_wrong_device_id() {
+        use crate::device_id::derive_device_id;
+
+        let mut alice = Client::<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >::new()
+        .unwrap();
+
+        let mut bob = Client::<
+            ClassicSuiteProvider,
+            X3DHProtocol<ClassicSuiteProvider>,
+            DoubleRatchetSession<ClassicSuiteProvider>,
+        >::new()
+        .unwrap();
+
+        let bob_bundle = bob.get_registration_bundle().unwrap();
+        let bob_identity = bob.key_manager.identity_public_key().unwrap().clone();
+        let bob_device_id = derive_device_id(bob_bundle.identity_public.as_ref());
+
+        let bob_bundle_for_init = crate::crypto::handshake::x3dh::X3DHPublicKeyBundle {
+            identity_public: bob_bundle.identity_public.clone(),
+            signed_prekey_public: bob_bundle.signed_prekey_public.clone(),
+            signature: bob_bundle.signature.clone(),
+            verifying_key: bob_bundle.verifying_key.clone(),
+            suite_id: bob_bundle.suite_id,
+        };
+
+        alice
+            .init_session(&bob_device_id, &bob_bundle_for_init, &bob_identity)
+            .unwrap();
+
+        let plaintext = b"Hello Bob!";
+        let first_message = alice.encrypt_message(&bob_device_id, plaintext).unwrap();
+
+        let alice_bundle = alice.get_registration_bundle().unwrap();
+
+        // ❌ Bob использует неправильный device_id
+        let wrong_device_id = "wrong_device_id_12345678";
+
+        let result = bob.init_receiving_session(wrong_device_id, &alice_bundle, &first_message);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Device ID mismatch"));
     }
 }

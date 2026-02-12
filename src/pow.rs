@@ -6,7 +6,13 @@ use argon2::{
     Argon2, Params, Version,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+
+const POW_SALT_PREFIX: &str = "kpow2:";
+
+fn derive_pow_salt(challenge: &str) -> String {
+    let prefix: String = challenge.chars().take(16).collect();
+    format!("{}{}", POW_SALT_PREFIX, prefix)
+}
 
 /// PoW challenge from server
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,7 +30,6 @@ pub struct PowSolution {
 }
 
 /// Callback for PoW progress updates (UniFFI callback interface)
-#[cfg_attr(feature = "ios", uniffi::export(callback_interface))]
 pub trait PowProgressCallback: Send + Sync {
     /// Called periodically during PoW computation
     fn on_progress(&self, current_nonce: u64, attempts: u64, estimated_progress: f32);
@@ -58,7 +63,7 @@ pub fn compute_pow(challenge: &str, difficulty: u32) -> PowSolution {
 pub fn compute_pow_with_progress(
     challenge: &str,
     difficulty: u32,
-    progress_callback: Option<Arc<dyn PowProgressCallback>>,
+    progress_callback: Option<Box<dyn PowProgressCallback>>,
 ) -> PowSolution {
     // Argon2id parameters optimized for mobile devices
     // memory_cost: 32 MB (32768 KiB) - balance between security and UX
@@ -74,9 +79,9 @@ pub fn compute_pow_with_progress(
 
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, Version::V0x13, params);
 
-    // Fixed salt for PoW (doesn't need unique salts per user)
-    // Using base64-encoded constant for deterministic behavior
-    let salt = SaltString::from_b64("a29uc3RydWN0LnBvdy52MS5zYWx0").expect("Invalid salt encoding");
+    // Derive salt from challenge prefix (kpow2:<first16>)
+    let salt_string = derive_pow_salt(challenge);
+    let salt = SaltString::encode_b64(salt_string.as_bytes()).expect("Invalid salt");
 
     const PROGRESS_INTERVAL_ATTEMPTS: u64 = 10;
     let estimated_max_attempts = estimate_max_attempts(difficulty);
@@ -167,7 +172,8 @@ pub fn verify_pow(challenge: &str, solution: &PowSolution, required_difficulty: 
 
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, Version::V0x13, params);
 
-    let salt = match SaltString::from_b64("a29uc3RydWN0LnBvdy52MS5zYWx0") {
+    let salt_string = derive_pow_salt(challenge);
+    let salt = match SaltString::encode_b64(salt_string.as_bytes()) {
         Ok(s) => s,
         Err(_) => return false,
     };
@@ -308,7 +314,7 @@ mod tests {
         };
 
         let solution =
-            compute_pow_with_progress("test_challenge_progress", 4, Some(Arc::new(callback)));
+            compute_pow_with_progress("test_challenge_progress", 4, Some(Box::new(callback)));
 
         assert!(!solution.hash.is_empty());
 

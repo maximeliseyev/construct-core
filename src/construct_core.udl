@@ -28,8 +28,7 @@ dictionary PowSolution {
     string hash;
 };
 
-[Trait, WithForeign]
-interface PowProgressCallback {
+callback interface PowProgressCallback {
     void on_progress(u64 current_nonce, u64 attempts, f32 estimated_progress);
 };
 
