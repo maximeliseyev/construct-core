@@ -1,0 +1,18 @@
+# cargo-audit configuration
+#
+# Security policy for dependency auditing
+
+[advisories]
+# Accepted warnings (non-blocking)
+ignore = [
+    # RUSTSEC-2024-0436: paste crate unmaintained
+    # Transitive dependency through pqcrypto-mldsa (post-quantum crypto)
+    # Only used when "post-quantum" feature is enabled (optional)
+    # Risk: Low - paste is a proc-macro for code generation, not runtime
+    # Alternative: Wait for pqcrypto-mldsa to migrate away from paste
+    "RUSTSEC-2024-0436",
+]
+
+# Allow informational warnings (unmaintained crates)
+informational_warnings = ["unmaintained"]
+

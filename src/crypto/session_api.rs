@@ -424,7 +424,7 @@ mod tests {
 
         // Alice encrypts a message
         let encrypted = session.encrypt(b"Hello Bob!").unwrap();
-        assert!(encrypted.ciphertext.len() > 0);
+        assert!(!encrypted.ciphertext.is_empty());
     }
 
     #[test]
